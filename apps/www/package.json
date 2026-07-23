@@ -2,24 +2,41 @@
   "name": "www",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "biome check",
-    "format": "biome format --write"
+    "format": "biome format --write",
+    "test": "vitest run",
+    "type-check": "pnpm run cf-typegen:check && tsc --noEmit",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv -c wrangler.jsonc -c ../duel-masters-official-crawler/wrangler.jsonc",
+    "cf-typegen:check": "wrangler types --env-interface CloudflareEnv -c wrangler.jsonc -c ../duel-masters-official-crawler/wrangler.jsonc --check",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },
   "dependencies": {
+    "@hono/standard-validator": "0.3.0",
+    "@opennextjs/cloudflare": "1.20.2",
+    "@dm-price-tracker/display-db": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "hono": "4.12.31",
+    "jose": "6.2.4",
     "next": "16.2.11",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "valibot": "1.4.2"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.18.7",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "4.1.10",
+    "wrangler": "4.113.0"
   }
 }

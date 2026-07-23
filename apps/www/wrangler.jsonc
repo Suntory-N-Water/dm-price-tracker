@@ -1,0 +1,36 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dm-price-tracker",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-07-23",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "secrets": {
+    "required": ["TEAM_DOMAIN", "POLICY_AUD", "ADMIN_POLICY_AUD", "ADMIN_EMAIL"]
+  },
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DISPLAY_DB",
+      "database_name": "duelmasters-display-db"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "CARD_IMAGES",
+      "bucket_name": "duelmasters-card-images"
+    },
+    {
+      "binding": "SCREENSHOTS",
+      "bucket_name": "mercari-crawler-screenshots"
+    }
+  ],
+  "services": [
+    {
+      "binding": "OFFICIAL_CRAWLER",
+      "service": "duel-masters-official-crawler"
+    }
+  ]
+}

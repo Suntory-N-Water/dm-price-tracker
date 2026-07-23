@@ -14,7 +14,9 @@
       "!node_modules",
       "!**/dist",
       "!**/worker-configuration.d.ts",
-      "!**/.wrangler"
+      "!**/.wrangler",
+      "!**/.open-next",
+      "!**/.next"
     ]
   },
   "formatter": {
