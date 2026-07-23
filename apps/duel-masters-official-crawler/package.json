@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "test": "vitest run",
     "type-check": "tsc --noEmit",
     "cf-typegen": "wrangler types",
     "db:create": "wrangler d1 create duel-masters-official-crawler-db --binding DB --update-config",
@@ -24,6 +25,7 @@
     "@types/node": "catalog:",
     "drizzle-kit": "catalog:",
     "typescript": "catalog:",
+    "vitest": "4.1.10",
     "wrangler": "catalog:"
   }
 }
