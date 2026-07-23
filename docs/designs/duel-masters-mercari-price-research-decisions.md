@@ -334,6 +334,13 @@
 - 表示用DB(`duelmasters-display-db`)のマイグレーション適用は、従来どおり`mercari-crawler`の`migrations-display-db`のみが担う。`duel-masters-official-crawler`側は`migrations-display-db`を持たず、読み書きする`products`/`cards`の型定義(`src/lib/displayDbSchema.ts`)だけを同じ内容に保つ。
 - `migrations-display-db`の旧マイグレーション(`0000_boring_venus.sql`)は削除し、新スキーマから単一の初期マイグレーションを再生成した(開発中のため破壊的変更として扱った)。
 
+## 31. バックエンド実装時に確定した共通除外ワードの保存と正規化
+
+- 利用者の共通除外ワード3枠は、`user_common_exclude_keywords`に`(user_email, position)`を主キーとして保存する。空き枠も空文字の行として明示的に保持し、初回アクセス時には「まとめ」「専用」「」の3行を作成する。
+- 全角英数字・記号・全角空白は半角へ、半角カタカナは全角へ統一する。大文字小文字、ひらがな・カタカナ、丸数字等の互換文字は統一しない。
+- 正規化済みワードは重複を除去し、文字列の比較順に並べて保存する。
+- 共通除外ワードを変更する際は、現在のCard別除外ワードを維持できる範囲で共通ワードを優先し、価格チェック中の全Cardの`card_watches`を同一D1バッチ内で履歴追加・現在行切替する。
+
 ## 未決事項(次回以降の議論項目)
 
 ### バックエンド
