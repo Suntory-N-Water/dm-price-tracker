@@ -7,10 +7,13 @@ import {
   jobs as crawlerJobs,
   records as crawlerRecords,
 } from '@cf-crawler/core/schema';
+import {
+  createDisplayDatabase,
+  pricePoints,
+  screenshots,
+} from '@dm-price-tracker/display-db';
 import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/d1';
 import * as v from 'valibot';
-import { pricePoints, screenshots } from '../lib/displayDbSchema';
 import {
   buildScreenshotKey,
   jobMetaSchema,
@@ -84,7 +87,7 @@ export async function saveCrawlResults(
       imageKey: buildScreenshotKey(meta.search_condition_id, job.id),
     };
   });
-  const displayDb = drizzle(displayDbBinding);
+  const displayDb = createDisplayDatabase(displayDbBinding);
 
   if (pricePointValues.length > 0) {
     await displayDb

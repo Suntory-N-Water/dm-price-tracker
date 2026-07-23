@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@cf-crawler/core": "workspace:*",
+    "@dm-price-tracker/display-db": "workspace:*",
     "drizzle-orm": "catalog:",
     "linkedom": "catalog:",
     "valibot": "catalog:"

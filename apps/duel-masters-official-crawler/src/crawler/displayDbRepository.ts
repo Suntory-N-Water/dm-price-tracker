@@ -1,16 +1,19 @@
 import type { CrawlerDatabase, Execute } from '@cf-crawler/core';
 import { jobs, records } from '@cf-crawler/core/schema';
+import {
+  cards,
+  createDisplayDatabase,
+  products,
+} from '@dm-price-tracker/display-db';
 import { eq } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/d1';
 import * as v from 'valibot';
-import { cards, products } from '../lib/displayDbSchema';
 import { duelMastersOfficialRecordSchema } from './duelMastersOfficialSite';
 
 export async function findRegisteredCardIds(
   productCode: string,
   displayDbBinding: D1Database,
 ): Promise<Set<string>> {
-  const registeredCards = await drizzle(displayDbBinding)
+  const registeredCards = await createDisplayDatabase(displayDbBinding)
     .select({ id: cards.id })
     .from(cards)
     .where(eq(cards.productId, productCode));
@@ -49,7 +52,7 @@ export async function saveCrawlResults(
     throw new Error('1回の実行に複数の商品が含まれています');
   }
 
-  const displayDb = drizzle(displayDbBinding);
+  const displayDb = createDisplayDatabase(displayDbBinding);
   await displayDb
     .insert(products)
     .values({ code: firstCard.productCode, name: firstCard.productName })

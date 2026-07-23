@@ -6,14 +6,14 @@ import {
   type Execute,
   type InitializerResult,
 } from '@cf-crawler/core';
-import { eq, exists, sql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/d1';
 import {
   cardWatches,
   cards,
+  createDisplayDatabase,
   priceSeries,
   searchConditions,
-} from '../lib/displayDbSchema';
+} from '@dm-price-tracker/display-db';
+import { eq, exists, sql } from 'drizzle-orm';
 import { saveCrawlResults } from './crawlResultRepository';
 import { LIST_KIND, scopeJobUrl } from './mercari';
 
@@ -24,7 +24,7 @@ export class MercariCrawlerOrchestrator extends BaseOrchestrator<
   override async initializer(
     _params: Record<string, never>,
   ): Promise<InitializerResult> {
-    const db = drizzle(this.env.DISPLAY_DB);
+    const db = createDisplayDatabase(this.env.DISPLAY_DB);
     const conditions = await db
       .select({
         id: searchConditions.id,
