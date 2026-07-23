@@ -30,6 +30,8 @@ export default defineConfig({
   ],
   test: {
     clearMocks: true,
+    exclude: ['src/**/*.ui.test.{ts,tsx}'],
+    include: ['src/**/*.test.ts'],
     restoreMocks: true,
     setupFiles: ['src/test-utils/setup.ts'],
   },

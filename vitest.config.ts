@@ -5,6 +5,6 @@ export default defineConfig({
     globals: true,
     clearMocks: true,
     restoreMocks: true,
-    projects: ['apps/*', 'packages/*'],
+    projects: ['apps/*', 'packages/*', 'apps/www/vitest.ui.config.ts'],
   },
 });
