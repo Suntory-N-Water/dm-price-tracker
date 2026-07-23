@@ -1,0 +1,28 @@
+{
+  "name": "@cf-crawler/duel-masters-official-crawler",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "type-check": "tsc --noEmit",
+    "cf-typegen": "wrangler types",
+    "db:create": "wrangler d1 create duel-masters-official-crawler-db --binding DB --update-config",
+    "db:generate": "pnpm exec drizzle-kit generate",
+    "db:migrate": "wrangler d1 migrations apply duel-masters-official-crawler-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply duel-masters-official-crawler-db --remote"
+  },
+  "dependencies": {
+    "@cf-crawler/core": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "linkedom": "catalog:",
+    "valibot": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "drizzle-kit": "catalog:",
+    "typescript": "catalog:",
+    "wrangler": "catalog:"
+  }
+}

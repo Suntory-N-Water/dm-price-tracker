@@ -1,0 +1,47 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "duel-masters-official-crawler",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "head_sampling_rate": 1
+    }
+  },
+  "workflows": [
+    {
+      "name": "duel-masters-official-crawler-orchestrator",
+      "binding": "ORCHESTRATOR",
+      "class_name": "DuelMastersOfficialCrawlerOrchestrator"
+    },
+    {
+      "name": "duel-masters-official-crawler-job",
+      "binding": "JOB_WORKFLOW",
+      "class_name": "DuelMastersOfficialCrawlerJob"
+    }
+  ],
+  "vars": {
+    // 公式サイトへのアクセス間隔を1秒以上にするため、Jobを直列実行する
+    "CHUNK_SIZE": 1,
+    "RETRY_LIMIT": 3,
+    "POLLING_INTERVAL": "1 second"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "duel-masters-official-crawler-db"
+    },
+    {
+      "binding": "DISPLAY_DB",
+      "database_name": "duelmasters-display-db"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "CARD_IMAGES",
+      "bucket_name": "duelmasters-card-images"
+    }
+  ]
+}

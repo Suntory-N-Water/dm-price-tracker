@@ -1,0 +1,47 @@
+{
+  "name": "cf-crawler",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Cloudflare Workers 上で動作するクローラー(非公開)",
+  "author": "sui",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "keywords": [
+    "typescript",
+    "pnpm",
+    "monorepo"
+  ],
+  "scripts": {
+    "format": "biome format --write --reporter=github ./apps ./packages",
+    "check": "biome check ./apps ./packages",
+    "check:fix": "biome check --write ./apps ./packages",
+    "lint": "biome lint ./apps ./packages",
+    "lint:unsafe-fix": "biome lint --write --unsafe ./apps ./packages",
+    "lint:ai": "biome lint --reporter=github ./apps ./packages 2>&1 | { grep '^::' || true; }",
+    "type-check": "pnpm --filter '*' run type-check",
+    "type-check:ai": "pnpm --filter '*' run type-check",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "ai-check": "pnpm --silent run format && pnpm --silent run lint:ai && pnpm --silent run type-check:ai",
+    "similarity": "similarity-ts --exclude node_modules --exclude dist --exclude .astro --exclude changelogs --exclude analysis --exclude inferred --exclude metadata --exclude '*.d.ts' .",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "**/*.{js,jsx,ts,tsx,cjs,mjs,cts,mts,json,jsonc,html,astro}": "biome check --write --no-errors-on-unmatched"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.14",
+    "@commitlint/cli": "^20.5.3",
+    "@commitlint/config-conventional": "^20.5.3",
+    "@tsconfig/strictest": "^2.0.8",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "^4.1.10",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "tsx": "^4.23.1",
+    "typescript": "catalog:",
+    "vitest": "^4.1.10"
+  }
+}

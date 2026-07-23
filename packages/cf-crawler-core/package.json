@@ -1,0 +1,25 @@
+{
+  "name": "@cf-crawler/core",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/lib/schema.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "type-check": "tsc --noEmit",
+    "cf-typegen": "wrangler types"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.15.2",
+    "@cloudflare/workers-types": "^4.20260702.1",
+    "typescript": "catalog:",
+    "vitest": "^4.1.10",
+    "wrangler": "catalog:"
+  },
+  "dependencies": {
+    "drizzle-orm": "catalog:"
+  }
+}

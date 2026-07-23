@@ -1,0 +1,452 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "793ac7f1-ad4c-4039-a00f-3777e6404c3a",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "tables": {
+    "card_watches": {
+      "name": "card_watches",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "user_email": {
+          "name": "user_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "card_id": {
+          "name": "card_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "search_condition_id": {
+          "name": "search_condition_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "is_current": {
+          "name": "is_current",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(CURRENT_TIMESTAMP)"
+        }
+      },
+      "indexes": {
+        "card_watches_current_unique_idx": {
+          "name": "card_watches_current_unique_idx",
+          "columns": ["user_email", "card_id"],
+          "isUnique": true,
+          "where": "\"card_watches\".\"is_current\" = 1"
+        },
+        "card_watches_user_card_idx": {
+          "name": "card_watches_user_card_idx",
+          "columns": ["user_email", "card_id"],
+          "isUnique": false
+        },
+        "card_watches_search_condition_idx": {
+          "name": "card_watches_search_condition_idx",
+          "columns": ["search_condition_id", "is_current"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "card_watches_user_email_users_email_fk": {
+          "name": "card_watches_user_email_users_email_fk",
+          "tableFrom": "card_watches",
+          "tableTo": "users",
+          "columnsFrom": ["user_email"],
+          "columnsTo": ["email"],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "card_watches_card_id_cards_id_fk": {
+          "name": "card_watches_card_id_cards_id_fk",
+          "tableFrom": "card_watches",
+          "tableTo": "cards",
+          "columnsFrom": ["card_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "card_watches_search_condition_id_search_conditions_id_fk": {
+          "name": "card_watches_search_condition_id_search_conditions_id_fk",
+          "tableFrom": "card_watches",
+          "tableTo": "search_conditions",
+          "columnsFrom": ["search_condition_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "card_watches_is_current_check": {
+          "name": "card_watches_is_current_check",
+          "value": "\"card_watches\".\"is_current\" in (0, 1)"
+        }
+      }
+    },
+    "cards": {
+      "name": "cards",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "product_id": {
+          "name": "product_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "image_key": {
+          "name": "image_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(CURRENT_TIMESTAMP)"
+        }
+      },
+      "indexes": {
+        "cards_product_id_idx": {
+          "name": "cards_product_id_idx",
+          "columns": ["product_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "cards_product_id_products_code_fk": {
+          "name": "cards_product_id_products_code_fk",
+          "tableFrom": "cards",
+          "tableTo": "products",
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["code"],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "price_points": {
+      "name": "price_points",
+      "columns": {
+        "search_condition_id": {
+          "name": "search_condition_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "crawled_at": {
+          "name": "crawled_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(CURRENT_TIMESTAMP)"
+        },
+        "price": {
+          "name": "price",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "price_points_search_condition_id_search_conditions_id_fk": {
+          "name": "price_points_search_condition_id_search_conditions_id_fk",
+          "tableFrom": "price_points",
+          "tableTo": "search_conditions",
+          "columnsFrom": ["search_condition_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "price_points_search_condition_id_crawled_at_pk": {
+          "columns": ["search_condition_id", "crawled_at"],
+          "name": "price_points_search_condition_id_crawled_at_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "price_points_price_check": {
+          "name": "price_points_price_check",
+          "value": "\"price_points\".\"price\" >= 0"
+        }
+      }
+    },
+    "price_series": {
+      "name": "price_series",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "card_id": {
+          "name": "card_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "normalized_additional_keyword": {
+          "name": "normalized_additional_keyword",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(CURRENT_TIMESTAMP)"
+        }
+      },
+      "indexes": {
+        "price_series_card_additional_keyword_unique_idx": {
+          "name": "price_series_card_additional_keyword_unique_idx",
+          "columns": ["card_id", "normalized_additional_keyword"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "price_series_card_id_cards_id_fk": {
+          "name": "price_series_card_id_cards_id_fk",
+          "tableFrom": "price_series",
+          "tableTo": "cards",
+          "columnsFrom": ["card_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "products": {
+      "name": "products",
+      "columns": {
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(CURRENT_TIMESTAMP)"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "screenshots": {
+      "name": "screenshots",
+      "columns": {
+        "search_condition_id": {
+          "name": "search_condition_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "crawled_at": {
+          "name": "crawled_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(CURRENT_TIMESTAMP)"
+        },
+        "image_key": {
+          "name": "image_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "screenshots_search_condition_id_search_conditions_id_fk": {
+          "name": "screenshots_search_condition_id_search_conditions_id_fk",
+          "tableFrom": "screenshots",
+          "tableTo": "search_conditions",
+          "columnsFrom": ["search_condition_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "screenshots_search_condition_id_crawled_at_pk": {
+          "columns": ["search_condition_id", "crawled_at"],
+          "name": "screenshots_search_condition_id_crawled_at_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "search_conditions": {
+      "name": "search_conditions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "price_series_id": {
+          "name": "price_series_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "normalized_exclude_keyword": {
+          "name": "normalized_exclude_keyword",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(CURRENT_TIMESTAMP)"
+        }
+      },
+      "indexes": {
+        "search_conditions_price_series_exclude_keyword_unique_idx": {
+          "name": "search_conditions_price_series_exclude_keyword_unique_idx",
+          "columns": ["price_series_id", "normalized_exclude_keyword"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "search_conditions_price_series_id_price_series_id_fk": {
+          "name": "search_conditions_price_series_id_price_series_id_fk",
+          "tableFrom": "search_conditions",
+          "tableTo": "price_series",
+          "columnsFrom": ["price_series_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "users": {
+      "name": "users",
+      "columns": {
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(CURRENT_TIMESTAMP)"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

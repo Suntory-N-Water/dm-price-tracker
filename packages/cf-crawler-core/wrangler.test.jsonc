@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cf-crawler-core-test",
+  "main": "test/fixtures/workflows.ts",
+  "compatibility_date": "2026-05-05",
+  "compatibility_flags": ["nodejs_compat"],
+  "workflows": [
+    {
+      "name": "cf-crawler-core-test-orchestrator",
+      "binding": "ORCHESTRATOR",
+      "class_name": "TestOrchestrator"
+    },
+    {
+      "name": "cf-crawler-core-test-job",
+      "binding": "JOB_WORKFLOW",
+      "class_name": "TestJob"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cf-crawler-core-test-db"
+    }
+  ],
+  "vars": {
+    "CHUNK_SIZE": 10,
+    "RETRY_LIMIT": 3,
+    "POLLING_INTERVAL": "1 second"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "@cf-crawler/mercari-crawler",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "cf-typegen": "wrangler types",
+    "screenshots:lifecycle:add": "wrangler r2 bucket lifecycle add mercari-crawler-screenshots delete-screenshots-after-3-days screenshots/ --expire-days 3",
+    "db:create": "wrangler d1 create mercari-crawler-db --binding DB --update-config",
+    "db:generate": "pnpm exec drizzle-kit generate",
+    "db:migrate": "wrangler d1 migrations apply mercari-crawler-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply mercari-crawler-db --remote",
+    "display-db:create": "wrangler d1 create duelmasters-display-db --binding DISPLAY_DB --update-config",
+    "display-db:generate": "pnpm exec drizzle-kit generate --config drizzle.display-db.config.ts",
+    "display-db:migrate": "wrangler d1 migrations apply duelmasters-display-db --local",
+    "display-db:migrate:remote": "wrangler d1 migrations apply duelmasters-display-db --remote"
+  },
+  "dependencies": {
+    "@cf-crawler/core": "workspace:*",
+    "@cloudflare/playwright": "catalog:",
+    "drizzle-orm": "catalog:",
+    "valibot": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260702.1",
+    "@types/node": "catalog:",
+    "drizzle-kit": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "^4.1.10",
+    "wrangler": "catalog:"
+  }
+}
