@@ -191,7 +191,7 @@
 - PricePointは無期限保持し、Screenshotは3日間保持する。
 - Card/Product画像とScreenshotの実体はR2に置き、表示用DBにはR2オブジェクトキーを保存する。
 
-単語単位の正規化、順番の統一、重複排除を行うことは確定している。文字種や空白をどこまで同一視するかという実装上の詳細と、除外ワード変更前後の履歴を結合する具体的なデータ構造、テーブル名、主キー、DDLは未確定である。残る仕様を確定してから既存マイグレーションを置き換える。
+単語単位の正規化、順番の統一、重複排除を行うことは確定している。文字種や空白をどこまで同一視するかという実装上の詳細と、除外ワード変更前後の履歴を結合する具体的なデータ構造、テーブル名、主キー、DDLは決定事項27・29で確定し、決定事項30で最終スキーマとして実装済み。
 
 ## 21. BaseOrchestratorのafterFinishフック実装(ADR 0001の実装完了)
 
@@ -203,7 +203,7 @@
 - `afterFinish`が例外を投げた場合は伝播し、Workflow(Execute)全体が失敗扱いになる。既存の`initializer`・`processJobs`・`finish`と同じOrchestratorレベルのエラー処理(握りつぶさない)に統一した。
 - テストは `packages/cf-crawler-core/test/integration/workflows-runtime.test.ts` に正常系・異常系を追加済み。
 
-その後、旧設計の表示用DBマイグレーションと`apps/mercari-crawler`の実装が完了した。`mercari-crawler`の`afterFinish()`は、対象ExecuteのRecordを集計して`price_points`へ、起点LISTジョブの情報を`screenshots`へ保存する。既存実装は現在の状態を示すものであり、決定事項20の最新要件に合わせた再設計が必要である。
+その後、旧設計の表示用DBマイグレーションと`apps/mercari-crawler`の実装が完了した。`mercari-crawler`の`afterFinish()`は、対象ExecuteのRecordを集計して`price_points`へ、起点LISTジョブの情報を`screenshots`へ保存する。`price_points`・`screenshots`のテーブル構造は決定事項30のスキーマ再設計でも変更していないため、`afterFinish()`側の実装は変更不要だった。
 
 ## 22. スクリーンショット撮影(決定事項6)のJob組み込み方法
 
@@ -265,8 +265,8 @@
 
 ### 実装・検証済み(コードで確認済み)
 
-- `apps/mercari-crawler`: LISTジョブ生成(`MercariCrawlerOrchestrator.ts`)、一覧DOM抽出・無限スクロール対応(`MercariCrawlerJob.ts`)、`afterFinish`での価格集計・DB書き込み(`crawlResultRepository.ts`・`priceAggregation.ts`)を実装済み。実データでのE2E確認済み(60件のrecords取得、price_points・screenshots反映を確認)。
-- `migrations-display-db/`に旧設計のDDL(products/cards/search_conditions/price_points/screenshots/users/watches)が適用済み。決定事項20の最新要件には未対応であり、再設計が必要。
+- `apps/mercari-crawler`: LISTジョブ生成(`MercariCrawlerOrchestrator.ts`)、一覧DOM抽出・無限スクロール対応(`MercariCrawlerJob.ts`)、`afterFinish`での価格集計・DB書き込み(`crawlResultRepository.ts`・`priceAggregation.ts`)を実装済み。旧設計での実データE2E確認済み(60件のrecords取得、price_points・screenshots反映を確認)。決定事項30のスキーマ再設計後は型チェック・既存テストで確認済みだが、新スキーマでのE2E再確認は未実施。
+- `migrations-display-db/`に決定事項30で確定した最終スキーマのDDL(products/cards/price_series/search_conditions/price_points/screenshots/users/card_watches)が適用済み。
 - `wrangler.jsonc`に`DB`・`DISPLAY_DB`のD1バインディング、`SCREENSHOTS` R2バケット、Cron Trigger(`*/30 * * * *`)、Workflowsの設定が揃っている。
 - `packages/cf-crawler-core`の`afterFinish`フック(決定事項21)、`saveJobRecords`のD1バインド変数上限バグ修正(コミット6c47215)。
 - `apps/duel-masters-official-crawler`: Service Binding向けRPC、公式検索XHRによる商品内全ページのID取得、DISPLAY_DBとの差分抽出、カード名取得、R2画像保存、Product/Card登録を実装済み。全商品を横断する起動経路は設けていない。実商品`spdeck13`でクロール処理を確認済み(初回はDETAIL・Record・Card・R2画像が各11件、再実行はDETAIL・Recordが0件)。
@@ -274,6 +274,7 @@
 ### 未着手(コード上に存在しない)
 
 - **バックエンド(Next.js + Hono、管理画面CRUD、カード一覧・詳細画面、Watch機能)**: `apps/`配下に該当ディレクトリなし。決定事項7・10・12・13の実装部分は未着手。
+
 ### 未確認(コードからは判定不可、要運用側確認)
 
 - `screenshots:lifecycle:add`(決定事項24のR2 Object Lifecycle Rule)を実際に実行済みかどうか。手動の1回限りセットアップコマンドで、実行有無はローカルコードから判定できない。
@@ -318,6 +319,20 @@
 - 利用者の現在の収集設定を保持する`CardWatch`(旧`watches`)は、値をUPDATEで上書きする1行構成ではなく、設定変更(除外ワード変更など)のたびに新しい行を追加する**追加専用の履歴ログ**として持つ。`(user_email, card_id)`ごとに`is_current = 1`の行は常に1件のみとし、部分ユニークインデックス(`WHERE is_current = 1`)で保証する。
 - 利用者の価格グラフは、その利用者の`card_watches`の全行(`is_current`を問わない)が指す`search_condition_id`を集め、それらの`PricePoint`を`crawled_at`順に結合して表示する。以前と同一の除外ワードに戻した場合は正規化後の完全一致で既存の`SearchCondition`が再利用されるため、履歴は自動的につながる。
 - この設計により、除外ワード変更履歴専用のテーブル(例: `UserSearchConditionHistory`)を別途新設する必要がない。`card_watches`1テーブルで現在値と履歴の両方を表現する。
+
+## 30. 表示用DBスキーマの最終確定(決定事項20の実装完了)
+
+決定事項20・27・29に沿って`apps/mercari-crawler/src/lib/displayDbSchema.ts`を再設計し、`migrations-display-db`を置き換えた。
+
+- `price_series`を新設。`(card_id, normalized_additional_keyword)`の自然キー(ユニークインデックス)で価格履歴の系列を一意に定める。追加ワードを変更すると別の`price_series`になり、同じ追加ワードへ戻すと既存の`price_series`が再利用される。
+- `search_conditions`を`price_series`の子として再設計。保持する列は`price_series_id`と`normalized_exclude_keyword`のみとし、旧`mercari_keyword`(カード名込みの結合済み文字列)・`enabled`・`updated_at`は廃止した。検索用キーワードは`cards.name`と`price_series.normalized_additional_keyword`から都度組み立てる。
+- `search_conditions.enabled`列は持たない。クロール対象かどうかは、`card_watches`に`search_condition_id`が一致し`is_current = 1`の行が存在するかを`EXISTS`で判定する。利用者の観測状態を`card_watches`だけに一本化し、二重管理を避けるため。
+- `watches`を`card_watches`に改名し、決定事項29のとおり追加専用の履歴ログとして再設計した。設定変更のたびに新しい行を追加し、既存行はUPDATEしない。`(user_email, card_id)`ごとに`is_current = 1`の行が1件だけになるよう部分ユニークインデックス(`WHERE is_current = 1`)で保証する。
+- `price_points`・`screenshots`・`users`・`products`・`cards`の構造は変更していない。`price_points`・`screenshots`は決定事項29のとおり`search_condition_id`を直接参照する。
+- `apps/mercari-crawler/src/crawler/MercariCrawlerOrchestrator.ts`の`initializer`を、`search_conditions → price_series → cards`のJOINでメルカリ検索キーワードを組み立て、`card_watches`への`EXISTS`でクロール対象を絞り込む実装に更新した。
+- 正規化(全角/半角統一、1枠1単語の検証)は、このリポジトリのクローラー側コードには実装していない。`search_conditions`・`price_series`・`card_watches`へ書き込む処理が現状どのクローラーにも存在せず(`mercari-crawler`は`search_conditions`を読むだけ、`duel-masters-official-crawler`は`products`/`cards`しか書かない)、利用者の生入力を受け取る箇所自体がこのリポジトリに存在しないため。正規化は書き込み元となる将来のバックエンドの責務とする。
+- 表示用DB(`duelmasters-display-db`)のマイグレーション適用は、従来どおり`mercari-crawler`の`migrations-display-db`のみが担う。`duel-masters-official-crawler`側は`migrations-display-db`を持たず、読み書きする`products`/`cards`の型定義(`src/lib/displayDbSchema.ts`)だけを同じ内容に保つ。
+- `migrations-display-db`の旧マイグレーション(`0000_boring_venus.sql`)は削除し、新スキーマから単一の初期マイグレーションを再生成した(開発中のため破壊的変更として扱った)。
 
 ## 未決事項(次回以降の議論項目)
 
