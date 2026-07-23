@@ -6,12 +6,19 @@ import { cardRoutes } from './routes/cards';
 import { cardWatchRoutes } from './routes/card-watches';
 import { adminProductRoutes } from './routes/admin-products';
 import { productRoutes } from './routes/products';
-import type { AccessTokenVerifier, ApiEnv } from './types';
+import type { AccessTokenVerifier, ApiEnv, LocalAuthentication } from './types';
 
 export function createApp({
   verifyAccessToken: accessTokenVerifier = verifyAccessToken,
+  localAuthentication = process.env.NODE_ENV === 'development'
+    ? {
+        email: process.env.LOCAL_AUTH_EMAIL ?? 'developer@example.com',
+        isAdmin: process.env.LOCAL_AUTH_IS_ADMIN !== 'false',
+      }
+    : undefined,
 }: {
   verifyAccessToken?: AccessTokenVerifier;
+  localAuthentication?: LocalAuthentication;
 } = {}) {
   const app = new Hono<ApiEnv>().basePath('/api');
 
@@ -24,7 +31,7 @@ export function createApp({
         context.json({ error: 'リクエストが大きすぎます' }, 413),
     }),
   );
-  app.use('*', authentication(accessTokenVerifier));
+  app.use('*', authentication(accessTokenVerifier, localAuthentication));
   const routes = app
     .route('/settings', settingsRoutes)
     .route('/cards', cardRoutes)

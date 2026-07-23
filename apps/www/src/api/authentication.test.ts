@@ -51,6 +51,70 @@ describe('Cloudflare Access認証', () => {
     ).resolves.toEqual({ count: 0 });
   });
 
+  it('開発用利用者が設定されている時、JWTなしで一般APIを利用できること', async () => {
+    const sut = createApp({
+      localAuthentication: {
+        email: 'developer@example.com',
+        isAdmin: false,
+      },
+    });
+
+    const response = await sut.request(
+      '/api/settings/common-exclude-keywords',
+      undefined,
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(
+      env.DISPLAY_DB.prepare('SELECT email FROM users WHERE email = ?')
+        .bind('developer@example.com')
+        .first(),
+    ).resolves.toEqual({ email: 'developer@example.com' });
+  });
+
+  it('開発用利用者に管理者権限がない時、管理APIを利用できないこと', async () => {
+    const sut = createApp({
+      localAuthentication: {
+        email: 'developer@example.com',
+        isAdmin: false,
+      },
+    });
+
+    const response = await sut.request('/api/admin/products', undefined, env);
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      error: '管理者権限が必要です',
+    });
+  });
+
+  it('開発用管理者が設定されている時、JWTなしで管理APIを利用できること', async () => {
+    const sut = createApp({
+      localAuthentication: {
+        email: 'developer@example.com',
+        isAdmin: true,
+      },
+    });
+    const bindings = {
+      ...env,
+      OFFICIAL_CRAWLER: {
+        crawl: async () => ({ id: 'unused', status: { status: 'complete' } }),
+        syncProducts: async () => ({ syncedCount: 0 }),
+        listProductCrawls: async () => [],
+      } as unknown as CloudflareEnv['OFFICIAL_CRAWLER'],
+    };
+
+    const response = await sut.request(
+      '/api/admin/products',
+      undefined,
+      bindings,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ products: [] });
+  });
+
   it('JWTの検証に失敗した時、認証エラーになり利用者が登録されないこと', async () => {
     const sut = createApp({
       verifyAccessToken: async () => {

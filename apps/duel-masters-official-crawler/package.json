@@ -4,14 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --persist-to ../../.wrangler/state --port 8788 --inspector-port 9230",
     "deploy": "wrangler deploy",
     "test": "vitest run",
     "type-check": "tsc --noEmit",
     "cf-typegen": "wrangler types",
     "db:create": "wrangler d1 create duel-masters-official-crawler-db --binding DB --update-config",
     "db:generate": "pnpm exec drizzle-kit generate",
-    "db:migrate": "wrangler d1 migrations apply duel-masters-official-crawler-db --local",
+    "db:migrate": "wrangler d1 migrations apply duel-masters-official-crawler-db --local --persist-to ../../.wrangler/state",
     "db:migrate:remote": "wrangler d1 migrations apply duel-masters-official-crawler-db --remote"
   },
   "dependencies": {

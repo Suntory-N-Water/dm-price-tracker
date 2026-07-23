@@ -1,31 +1,67 @@
-# dm-price-tracker API
+# DM Price Tracker
 
 Next.js App Router のキャッチオール Route Handler に Hono をマウントした
-バックエンドです。画面機能は含みません。Cloudflare Workers への変換と
-デプロイには OpenNext.js for Cloudflare を使います。
+画面・API一体のアプリケーションです。Cloudflare Workers への変換と
+デプロイには OpenNext.js for Cloudflare を使います。本番ではすべての
+保護対象APIでCloudflare AccessのJWTを検証します。
 
-## ローカル設定
+## ローカル開発
 
-`apps/www/.dev.vars` に次の値を設定します。
+追加設定なしで、開発用管理者 `developer@example.com` として起動します。
+一般利用者として確認する場合やメールアドレスを変更する場合だけ、
+開発用認証設定を作成します。
+
+```bash
+cp apps/www/.env.local.example apps/www/.env.local
+```
+
+`LOCAL_AUTH_IS_ADMIN=false` にすると一般利用者として確認できます。この認証は
+`NODE_ENV=development` の時だけ有効で、本番のCloudflare Access認証には
+影響しません。
+
+リポジトリルートから次のコマンドを実行すると、3つのローカルD1へ
+マイグレーションを適用した後、画面・メルカリクローラー・公式サイト
+クローラーを並列起動します。D1とR2の状態はすべてルートの
+`.wrangler/state/v3` を共有します。
+
+```bash
+pnpm dev
+```
+
+画面は `http://localhost:3000` で確認できます。個別に起動する場合は
+次のルートコマンドを使用します。
+
+```bash
+pnpm dev:www
+pnpm dev:mercari-crawler
+pnpm dev:official-crawler
+```
+
+ローカルではCronが自動実行されないため、価格取得を開始する時は別の
+ターミナルから実行します。
+
+```bash
+pnpm crawl:mercari
+```
+
+ローカルDBのマイグレーションだけを実行する場合:
+
+```bash
+pnpm db:migrate:local
+```
+
+Hono アプリだけの疎通確認は、`apps/www` で
+`hono request src/api/app.ts -P /api/health` を実行します。
+
+## 本番設定
+
+デプロイ先には次のSecretを設定します。
 
 ```dotenv
 TEAM_DOMAIN=https://<team-name>.cloudflareaccess.com
 POLICY_AUD=<利用者向けAccessアプリケーションのAUD>
 ADMIN_POLICY_AUD=<管理者向けAccessアプリケーションのAUD>
 ADMIN_EMAIL=<管理者のメールアドレス>
-```
-
-表示用DBのマイグレーションは `mercari-crawler` が所有します。
-
-```bash
-pnpm --filter mercari-crawler run display-db:migrate
-pnpm --filter www run dev
-```
-
-Hono アプリだけの疎通確認は、D1を必要としないヘルスチェックで行えます。
-
-```bash
-hono request src/api/app.ts -P /api/health
 ```
 
 ## API

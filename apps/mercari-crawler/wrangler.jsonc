@@ -36,11 +36,13 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "mercari-crawler-db"
+      "database_name": "mercari-crawler-db",
+      "preview_database_id": "mercari-crawler-db-local"
     },
     {
       "binding": "DISPLAY_DB",
       "database_name": "duelmasters-display-db",
+      "preview_database_id": "duelmasters-display-db-local",
       "migrations_dir": "./migrations-display-db"
     }
   ]

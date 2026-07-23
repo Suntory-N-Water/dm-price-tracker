@@ -31,11 +31,13 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "duel-masters-official-crawler-db"
+      "database_name": "duel-masters-official-crawler-db",
+      "preview_database_id": "duel-masters-official-crawler-db-local"
     },
     {
       "binding": "DISPLAY_DB",
-      "database_name": "duelmasters-display-db"
+      "database_name": "duelmasters-display-db",
+      "preview_database_id": "duelmasters-display-db-local"
     }
   ],
   "r2_buckets": [

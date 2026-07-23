@@ -10,3 +10,8 @@ export type AccessTokenVerifier = (
   env: CloudflareEnv,
   audience: string,
 ) => Promise<string>;
+
+export type LocalAuthentication = {
+  email: string;
+  isAdmin: boolean;
+};
