@@ -19,7 +19,7 @@
     "check:fix": "biome check --write ./apps ./packages",
     "lint": "biome lint ./apps ./packages",
     "lint:unsafe-fix": "biome lint --write --unsafe ./apps ./packages",
-    "lint:ai": "biome lint --reporter=github ./apps ./packages 2>&1 | { grep '^::' || true; }",
+    "lint:ai": "biome lint --reporter=github ./apps ./packages",
     "type-check": "pnpm --filter '*' run type-check",
     "type-check:ai": "pnpm --filter '*' run type-check",
     "test": "vitest run",
