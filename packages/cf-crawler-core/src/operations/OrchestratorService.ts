@@ -5,15 +5,11 @@ import {
   hasIncompleteJobs,
   hasIncompleteJobsInChunk,
   insertInitialState,
+  markExecuteAborted,
   markJobAborted,
   markExecuteFinished,
 } from '../lib/repository';
-import type {
-  Chunk,
-  CrawlerEnv,
-  Initializer,
-  InitializerResult,
-} from '../types';
+import type { CrawlerEnv, Initializer, InitializerResult } from '../types';
 import type { Execute } from '../lib/schema';
 
 export class OrchestratorService<Params = unknown> {
@@ -32,20 +28,39 @@ export class OrchestratorService<Params = unknown> {
       async () => await initializer(params),
     );
 
-    await insertInitialState(this.db, initialized.execute, initialized.jobs);
+    await this.step.do(
+      'save initial crawl state',
+      async () =>
+        await insertInitialState(
+          this.db,
+          initialized.execute,
+          initialized.jobs,
+        ),
+    );
 
     return initialized;
   }
 
   async processJobs(execute: Execute): Promise<void> {
-    while (await hasIncompleteJobs(this.db, execute.id)) {
-      const waitingJobs = await findWaitingJobs(
-        this.db,
-        execute.id,
-        this.env.CHUNK_SIZE,
-      );
+    for (;;) {
+      const chunk = await this.step.do('select next job chunk', async () => {
+        const waitingJobs = await findWaitingJobs(
+          this.db,
+          execute.id,
+          this.env.CHUNK_SIZE,
+        );
 
-      if (waitingJobs.length === 0) {
+        return {
+          hasIncompleteJobs: await hasIncompleteJobs(this.db, execute.id),
+          jobIds: waitingJobs.map((job) => job.id),
+        };
+      });
+
+      if (!chunk.hasIncompleteJobs) {
+        return;
+      }
+
+      if (chunk.jobIds.length === 0) {
         await this.step.sleep(
           'wait for running jobs',
           this.env.POLLING_INTERVAL,
@@ -53,22 +68,26 @@ export class OrchestratorService<Params = unknown> {
         continue;
       }
 
-      const instances = await this.env.JOB_WORKFLOW.createBatch(
-        waitingJobs.map((job) => ({
-          id: job.id,
-          params: { jobId: job.id },
-        })),
-      );
-
-      await this.pollUntilComplete({
-        jobIds: waitingJobs.map((job) => job.id),
-        instances,
+      await this.step.do('start job chunk', async () => {
+        await this.env.JOB_WORKFLOW.createBatch(
+          chunk.jobIds.map((jobId) => ({
+            id: jobId,
+            params: { jobId },
+          })),
+        );
       });
+
+      await this.pollUntilComplete(chunk.jobIds);
     }
   }
 
-  async pollUntilComplete(chunk: Chunk): Promise<void> {
-    while (await this.isChunkRunning(chunk)) {
+  async pollUntilComplete(jobIds: readonly string[]): Promise<void> {
+    while (
+      await this.step.do(
+        'check job chunk',
+        async () => await this.isChunkRunning(jobIds),
+      )
+    ) {
       await this.step.sleep('wait for job chunk', this.env.POLLING_INTERVAL);
     }
   }
@@ -80,9 +99,19 @@ export class OrchestratorService<Params = unknown> {
     );
   }
 
-  private async isChunkRunning(chunk: Chunk): Promise<boolean> {
+  async abort(execute: Execute): Promise<void> {
+    await this.step.do(
+      'abort execute',
+      async () => await markExecuteAborted(this.db, execute.id),
+    );
+  }
+
+  private async isChunkRunning(jobIds: readonly string[]): Promise<boolean> {
     const statuses = await Promise.all(
-      chunk.instances.map(async (instance) => await instance.status()),
+      jobIds.map(async (jobId) => {
+        const instance = await this.env.JOB_WORKFLOW.get(jobId);
+        return await instance.status();
+      }),
     );
 
     if (statuses.some((status) => isRunningStatus(status.status))) {
@@ -91,7 +120,7 @@ export class OrchestratorService<Params = unknown> {
 
     await Promise.all(
       statuses.map(async (status, index) => {
-        const jobId = chunk.jobIds[index];
+        const jobId = jobIds[index];
 
         if (!jobId || !isFailedStatus(status.status)) {
           return;
@@ -101,7 +130,7 @@ export class OrchestratorService<Params = unknown> {
       }),
     );
 
-    return await hasIncompleteJobsInChunk(this.db, chunk.jobIds);
+    return await hasIncompleteJobsInChunk(this.db, jobIds);
   }
 }
 

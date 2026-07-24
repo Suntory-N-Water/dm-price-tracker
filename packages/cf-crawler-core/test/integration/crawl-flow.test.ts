@@ -62,6 +62,28 @@ describe('初期化', () => {
         },
       ]);
     });
+
+    it('Workflowが復元される時、同じExecuteと起点Jobが重複登録されないこと', async () => {
+      // Arrange
+      const step = createReplayableStep();
+      const sut = createOrchestratorService(step);
+      const initialized = {
+        execute: createExecute(),
+        jobs: createJobs([{ url: 'https://example.com/', kind: 'LIST' }]),
+      };
+      await sut.initialize({}, () => initialized);
+      step.replay();
+
+      // Act
+      const result = sut.initialize({}, () => {
+        throw new Error('復元時にinitializerが再実行されました');
+      });
+
+      // Assert
+      await expect(result).resolves.toEqual(initialized);
+      await expect(countRows('executes')).resolves.toBe(1);
+      await expect(countRows('jobs')).resolves.toBe(1);
+    });
   });
 
   describe('異常系', () => {
@@ -141,6 +163,30 @@ describe('Job処理', () => {
       await expect(fetchRecords()).resolves.toHaveLength(1);
     });
 
+    it('Workflowが復元される時、完了済みRecordが重複登録されずJobの完了状態が保たれること', async () => {
+      // Arrange
+      const { jobId } = await seedInitialJob();
+      const step = createReplayableStep();
+      const sut = createJobService(step);
+      const createdRecords = createRecords([
+        { url: 'https://example.com/', data: { ok: true } },
+      ]);
+      await sut.process(jobId, () => createdRecords);
+      step.replay();
+
+      // Act
+      await sut.process(jobId, () => {
+        throw new Error('復元時にworkerが再実行されました');
+      });
+
+      // Assert
+      await expect(fetchJob(jobId)).resolves.toMatchObject({
+        status: 'FINISHED',
+        resultCount: 1,
+      });
+      await expect(fetchRecords()).resolves.toHaveLength(1);
+    });
+
     it('workerが何も生成しない時、親Jobのresult_countが0として保存されること', async () => {
       // Arrange
       const { jobId } = await seedInitialJob();
@@ -178,7 +224,7 @@ describe('Job処理', () => {
     it('Record登録に失敗する時、Jobが中途半端にFINISHEDにならないこと', async () => {
       // Arrange
       const { jobId } = await seedInitialJob();
-      const sut = createJobService(createFailingStep());
+      const sut = createJobService(createFailingStep('save'));
 
       // Act
       await sut.process(jobId, () =>
@@ -194,7 +240,7 @@ describe('Job処理', () => {
     it('子Job登録に失敗する時、Jobが中途半端にFINISHEDにならないこと', async () => {
       // Arrange
       const { jobId } = await seedInitialJob();
-      const sut = createJobService(createFailingStep());
+      const sut = createJobService(createFailingStep('save'));
 
       // Act
       await sut.process(jobId, () =>
@@ -594,6 +640,30 @@ describe('バインディング設定', () => {
       // Assert
       expect(workflow.createdBatchSizes).toEqual([1]);
     });
+
+    it('Workflowが復元される時、起動済みJob Workflowが重複起動されないこと', async () => {
+      // Arrange
+      const workflow = createJobWorkflow({
+        keepJobRunning: true,
+        status: 'running',
+      });
+      const step = createReplayableStep(new Error('Workflow engine restarted'));
+      const sut = createOrchestratorService(step, {
+        JOB_WORKFLOW: workflow.binding,
+      });
+      const { executeId } = await seedInitialJob();
+      await expect(
+        sut.processJobs(await fetchExecute(executeId)),
+      ).rejects.toThrow('Workflow engine restarted');
+      step.replay();
+
+      // Act
+      const result = sut.processJobs(await fetchExecute(executeId));
+
+      // Assert
+      await expect(result).rejects.toThrow('Workflow engine restarted');
+      expect(workflow.createdBatchSizes).toEqual([1]);
+    });
   });
 
   describe('異常系', () => {
@@ -633,7 +703,7 @@ type EnvOverrides = {
 };
 
 function createOrchestratorService<Params = unknown>(
-  step = createStep(),
+  step: WorkflowStep = createStep(),
   envOverrides: EnvOverrides = {},
 ) {
   if ('DB' in envOverrides && !envOverrides.DB) {
@@ -667,6 +737,7 @@ function createEnv(overrides: EnvOverrides = {}): CrawlerEnv {
 }
 
 type TestWorkflowStep = WorkflowStep & { sleepNames: string[] };
+type ReplayableWorkflowStep = WorkflowStep & { replay(): void };
 
 function createStep(): TestWorkflowStep {
   const sleepNames: string[] = [];
@@ -682,10 +753,53 @@ function createStep(): TestWorkflowStep {
   };
 }
 
-function createFailingStep(): WorkflowStep {
+function createReplayableStep(sleepError?: Error): ReplayableWorkflowStep {
+  const results: unknown[] = [];
+  let doIndex = 0;
+
   return {
-    do: (() => {
-      throw new Error('write failed');
+    do: ((...args: Parameters<WorkflowStep['do']>) => {
+      const resultIndex = doIndex;
+      doIndex += 1;
+
+      if (resultIndex < results.length) {
+        return createStepPromise(Promise.resolve(results[resultIndex]));
+      }
+
+      return createStepPromise(
+        runStepCallback(args).then((result) => {
+          results[resultIndex] = result;
+          return result;
+        }),
+      );
+    }) as WorkflowStep['do'],
+    sleep: async () => {
+      if (sleepError) {
+        throw sleepError;
+      }
+    },
+    sleepUntil: async () => {},
+    waitForEvent: createWaitForEvent(),
+    replay() {
+      doIndex = 0;
+    },
+  };
+}
+
+function createFailingStep(
+  target: 'process' | 'save' = 'process',
+): WorkflowStep {
+  return {
+    do: ((...args: Parameters<WorkflowStep['do']>) => {
+      const name = args[0];
+      const targetPrefix =
+        target === 'process' ? 'process job ' : 'save job result ';
+
+      if (typeof name === 'string' && name.startsWith(targetPrefix)) {
+        throw new Error('write failed');
+      }
+
+      return runStepCallback(args);
     }) as WorkflowStep['do'],
     sleep: async () => {},
     sleepUntil: async () => {},
@@ -743,21 +857,32 @@ function createStepPromise<T>(promise: Promise<T>): StepPromise<T> {
 type JobWorkflowOptions = {
   worker?: (jobId: string) => 'FINISHED' | 'ABORTED';
   completeOnSecondStatus?: boolean;
+  keepJobRunning?: boolean;
   status?: WorkflowInstanceStatus;
   errorMessage?: string;
 };
 
 function createJobWorkflow(options: JobWorkflowOptions = {}) {
   const createdBatchSizes: number[] = [];
+  const instances = new Map<string, WorkflowInstance>();
 
   return {
     createdBatchSizes,
     binding: {
       async get(id: string) {
-        return createWorkflowInstance(id, options);
+        const instance = instances.get(id);
+
+        if (!instance) {
+          throw new Error(`Workflow instance ${id} was not found.`);
+        }
+
+        return instance;
       },
       async create(options?: { id?: string; params?: JobWorkflowParams }) {
-        return createWorkflowInstance(options?.id ?? crypto.randomUUID(), {});
+        const id = options?.id ?? crypto.randomUUID();
+        const instance = createWorkflowInstance(id, {});
+        instances.set(id, instance);
+        return instance;
       },
       async createBatch(batch: { id?: string; params?: JobWorkflowParams }[]) {
         createdBatchSizes.push(batch.length);
@@ -775,14 +900,19 @@ function createJobWorkflow(options: JobWorkflowOptions = {}) {
                 .update(jobs)
                 .set({ status: 'ABORTED', resultError: 'planned failure' })
                 .where(eq(jobs.id, jobId));
-            } else if (!options.completeOnSecondStatus) {
+            } else if (
+              !options.completeOnSecondStatus &&
+              !options.keepJobRunning
+            ) {
               await testDb
                 .update(jobs)
                 .set({ status: 'FINISHED', crawledAt: 'now' })
                 .where(eq(jobs.id, jobId));
             }
 
-            return createWorkflowInstance(jobId, options);
+            const instance = createWorkflowInstance(jobId, options);
+            instances.set(jobId, instance);
+            return instance;
           }),
         );
       },

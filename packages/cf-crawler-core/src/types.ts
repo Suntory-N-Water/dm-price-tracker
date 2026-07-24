@@ -64,8 +64,3 @@ export type CrawlerEnv = {
   RETRY_LIMIT: number;
   POLLING_INTERVAL: WorkflowSleepDuration;
 };
-
-export type Chunk = {
-  jobIds: string[];
-  instances: WorkflowInstance[];
-};

@@ -22,13 +22,16 @@ export class JobService {
   ) {}
 
   async process(jobId: string, worker: JobWorker): Promise<void> {
-    const job = await findJob(this.db, jobId);
+    const job = await this.step.do(`start job ${jobId}`, async () => {
+      const foundJob = await findJob(this.db, jobId);
 
-    if (!job) {
-      throw new Error(`Job ${jobId} was not found.`);
-    }
+      if (!foundJob) {
+        throw new Error(`Job ${jobId} was not found.`);
+      }
 
-    await markJobRunning(this.db, job.id);
+      await markJobRunning(this.db, foundJob.id);
+      return { ...foundJob, status: 'RUNNING' as const };
+    });
 
     try {
       const result = await this.step.do(
@@ -40,12 +43,18 @@ export class JobService {
             backoff: 'exponential',
           },
         },
-        async () => await worker({ ...job, status: 'RUNNING' }),
+        async () => await worker(job),
       );
 
-      await this.saveResult(job, result ?? []);
+      await this.step.do(
+        `save job result ${job.id}`,
+        async () => await this.saveResult(job, result ?? []),
+      );
     } catch (error) {
-      await markJobAborted(this.db, job.id, errorMessage(error));
+      await this.step.do(
+        `abort job ${job.id}`,
+        async () => await markJobAborted(this.db, job.id, errorMessage(error)),
+      );
     }
   }
 

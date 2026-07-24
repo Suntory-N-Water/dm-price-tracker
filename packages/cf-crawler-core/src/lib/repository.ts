@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, sql } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import type { CrawlerDatabase } from './db';
 import { executes, jobs, records, type Execute, type Job } from './schema';
@@ -20,6 +20,7 @@ export async function insertInitialState(
       status: 'RUNNING',
       startedAt: currentTimestamp,
     })
+    .onConflictDoNothing()
     .returning({ id: executes.id });
 
   if (initialJobs.length === 0) {
@@ -153,7 +154,11 @@ export async function saveJobRecords(
   // 同一バッチに含めてrecords insertとの原子性を保つ。
   const batchQueries: BatchItem<'sqlite'>[] = [
     ...rowChunks.map((rowChunk) =>
-      db.insert(records).values(rowChunk).returning({ id: records.id }),
+      db
+        .insert(records)
+        .values(rowChunk)
+        .onConflictDoNothing()
+        .returning({ id: records.id }),
     ),
     finish,
   ];
@@ -188,23 +193,20 @@ export async function saveChildJobs(
     (_, index) =>
       rows.slice(index * INSERT_CHUNK_SIZE, (index + 1) * INSERT_CHUNK_SIZE),
   );
-  const inserted: { id: string }[] = [];
-
   for (const rowChunk of rowChunks) {
-    inserted.push(
-      ...(await db
-        .insert(jobs)
-        .values(rowChunk)
-        .onConflictDoNothing()
-        .returning({ id: jobs.id })),
-    );
+    await db.insert(jobs).values(rowChunk).onConflictDoNothing();
   }
+
+  const [childCount] = await db
+    .select({ value: count() })
+    .from(jobs)
+    .where(eq(jobs.parentJobId, parentJob.id));
 
   await db
     .update(jobs)
     .set({
       status: 'FINISHED',
-      resultCount: inserted.length,
+      resultCount: childCount?.value ?? 0,
       crawledAt: currentTimestamp,
       updatedAt: currentTimestamp,
     })
@@ -259,6 +261,19 @@ export async function markExecuteFinished(
     .update(executes)
     .set({
       status: 'FINISHED',
+      updatedAt: currentTimestamp,
+    })
+    .where(eq(executes.id, executeId));
+}
+
+export async function markExecuteAborted(
+  db: CrawlerDatabase,
+  executeId: string,
+): Promise<void> {
+  await db
+    .update(executes)
+    .set({
+      status: 'ABORTED',
       updatedAt: currentTimestamp,
     })
     .where(eq(executes.id, executeId));

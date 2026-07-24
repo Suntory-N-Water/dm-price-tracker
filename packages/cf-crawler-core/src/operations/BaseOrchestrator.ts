@@ -23,12 +23,17 @@ export abstract class BaseOrchestrator<
       this.initializer.bind(this),
     );
 
-    await service.processJobs(initialized.execute);
-    await service.finish(initialized.execute);
-    await step.do(
-      'after finish hook',
-      async () => await this.afterFinish(initialized.execute, db),
-    );
+    try {
+      await service.processJobs(initialized.execute);
+      await service.finish(initialized.execute);
+      await step.do(
+        'after finish hook',
+        async () => await this.afterFinish(initialized.execute, db),
+      );
+    } catch (error) {
+      await service.abort(initialized.execute);
+      throw error;
+    }
 
     return initialized;
   }

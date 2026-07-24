@@ -122,7 +122,9 @@ describe('afterFinishフック', () => {
 
       // Assert
       const error = await instance.getError();
+      const [execute] = await testDb.select().from(executes);
       expect(error.message).toBe('after finish failed');
+      expect(execute).toMatchObject({ status: 'ABORTED' });
     });
   });
 });
