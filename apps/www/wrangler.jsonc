@@ -19,6 +19,12 @@
       "database_id": "7edc2cfe-6f98-427f-bb91-feb03638a268"
     }
   ],
+  "observability": {
+    "logs": {
+      "enabled": false,
+      "invocation_logs": true
+    }
+  },
   "r2_buckets": [
     {
       "binding": "CARD_IMAGES",
