@@ -10,7 +10,6 @@ import {
 import Image from 'next/image';
 import { useMemo, useState } from 'react';
 import type { Card as CardType, Product } from '@/external/dto/api-schemas';
-import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
 import { Card } from '@/shared/components/ui/card';
 import { Input } from '@/shared/components/ui/input';
