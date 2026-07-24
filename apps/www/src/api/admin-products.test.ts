@@ -34,10 +34,11 @@ describe('管理API', () => {
   beforeEach(async () => {
     await resetDisplayDb();
     await env.DISPLAY_DB.prepare(
-      `INSERT INTO products (code, name)
+      `INSERT INTO products (code, name, display_order)
        VALUES
-         ('26ex2', 'カリスマBEST'),
-         ('26rp2', 'ドギラゴン逆の段')`,
+         ('26ex2', 'カリスマBEST', 0),
+         ('26rp2', 'ドギラゴン逆の段', 1),
+         ('25ex4', 'パンドラ・ウォーズ', 2)`,
     ).run();
     onTestFinished(resetDisplayDb);
   });
@@ -105,6 +106,32 @@ describe('管理API', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       products: [{ code: '26rp2', name: 'ドギラゴン逆の段' }],
+    });
+  });
+
+  it('未開始商品を取得した時、公式サイトの商品順で取得できること', async () => {
+    const sut = createApp({
+      verifyAccessToken: async () => 'admin@example.com',
+    });
+    const bindings = createBindings({
+      crawl: async () => ({ id: 'unused', status: { status: 'complete' } }),
+      syncProducts: async () => ({ syncedCount: 0 }),
+      listProductCrawls: async () => [],
+    });
+
+    const response = await sut.request(
+      '/api/admin/products/available',
+      { headers: { 'cf-access-jwt-assertion': 'valid-token' } },
+      bindings,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      products: [
+        { code: '26ex2', name: 'カリスマBEST' },
+        { code: '26rp2', name: 'ドギラゴン逆の段' },
+        { code: '25ex4', name: 'パンドラ・ウォーズ' },
+      ],
     });
   });
 

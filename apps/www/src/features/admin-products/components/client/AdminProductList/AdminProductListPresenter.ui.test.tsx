@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { AdminProductListPresenter } from './AdminProductListPresenter';
 
@@ -36,5 +37,32 @@ describe('管理商品一覧', () => {
     expect(screen.getByText('取得中')).toBeVisible();
     expect(screen.getByText('失敗')).toBeVisible();
     expect(screen.getByRole('button', { name: '再取得' })).toBeVisible();
+    expect(screen.getByText('2026年7月23日 19:00')).toBeVisible();
+    expect(screen.getByText('2026年7月23日 20:00')).toBeVisible();
+    expect(screen.getByText('2026年7月23日 18:00')).toBeVisible();
+  });
+
+  it('追加商品を選択した時、選択状態を意味と見た目の両方で示すこと', async () => {
+    const user = userEvent.setup();
+    render(
+      <AdminProductListPresenter
+        products={[]}
+        availableProducts={[
+          {
+            code: '26ex2',
+            name: 'DM26-EX2 悪感謝祭 カリスマBEST',
+          },
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: '商品を追加' }));
+    const product = screen.getByRole('button', {
+      name: /DM26-EX2 悪感謝祭 カリスマBEST/u,
+    });
+    await user.click(product);
+
+    expect(product).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('選択中')).toBeVisible();
   });
 });

@@ -3,6 +3,7 @@ import { parseHTML } from 'linkedom';
 export type OfficialProduct = {
   code: string;
   name: string;
+  displayOrder: number;
 };
 
 export function extractProducts(html: string): OfficialProduct[] {
@@ -18,7 +19,7 @@ export function extractProducts(html: string): OfficialProduct[] {
       continue;
     }
     if (!products.has(code)) {
-      products.set(code, { code, name });
+      products.set(code, { code, name, displayOrder: products.size });
     }
   }
 

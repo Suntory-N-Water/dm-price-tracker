@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus, RefreshCw, Search } from 'lucide-react';
+import { CheckCircle2, Plus, RefreshCw, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { AdminProduct, Product } from '@/external/dto/api-schemas';
 import { Badge } from '@/shared/components/ui/badge';
@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from '@/shared/components/ui/dialog';
 import { Input } from '@/shared/components/ui/input';
+import { formatJstDateTime } from '@/shared/lib/date-time';
 import { cn } from '@/shared/lib/utils';
 
 export function AdminProductListPresenter({
@@ -48,9 +49,6 @@ export function AdminProductListPresenter({
     <div className='space-y-6'>
       <div className='flex flex-col justify-between gap-4 sm:flex-row sm:items-end'>
         <div>
-          <p className='mb-1 text-sm font-semibold text-emerald-700'>
-            PRODUCT ADMIN
-          </p>
           <h1 className='text-3xl font-bold tracking-tight'>商品</h1>
         </div>
         <div className='flex flex-wrap gap-2'>
@@ -85,7 +83,7 @@ export function AdminProductListPresenter({
                 商品を追加
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className='flex h-[88vh] max-h-[680px] flex-col overflow-hidden'>
               <DialogHeader>
                 <DialogTitle className='text-xl font-bold'>
                   商品を追加
@@ -106,7 +104,12 @@ export function AdminProductListPresenter({
                   className='pl-9'
                 />
               </label>
-              <div className='mt-4 max-h-80 space-y-2 overflow-y-auto'>
+              <div className='mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto'>
+                {filteredAvailable.length > 0 && (
+                  <p className='px-1 pb-1 text-xs text-stone-500'>
+                    公式サイトの掲載順（新しい順）
+                  </p>
+                )}
                 {filteredAvailable.length === 0 ? (
                   <p className='p-6 text-center text-sm text-stone-500'>
                     追加できる商品はありません
@@ -116,17 +119,24 @@ export function AdminProductListPresenter({
                     <button
                       key={product.code}
                       type='button'
+                      aria-pressed={selectedCode === product.code}
                       onClick={() => setSelectedCode(product.code)}
                       className={cn(
-                        'w-full rounded-lg border border-stone-200 p-4 text-left hover:border-emerald-600 hover:bg-emerald-50',
+                        'relative min-h-16 w-full cursor-pointer rounded-xl border border-stone-200 bg-white px-4 py-3 pr-12 text-left transition-colors hover:border-emerald-400 hover:bg-emerald-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 sm:pr-28',
                         selectedCode === product.code &&
-                          'border-emerald-700 bg-emerald-50 ring-1 ring-emerald-700',
+                          'border-emerald-500 bg-emerald-50 shadow-sm',
                       )}
                     >
                       <p className='font-semibold'>{product.name}</p>
-                      <p className='mt-1 text-xs text-stone-500'>
+                      <p className='mt-1 font-mono text-xs text-stone-500'>
                         {product.code}
                       </p>
+                      {selectedCode === product.code && (
+                        <span className='absolute right-3 top-1/2 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-full bg-emerald-700 text-xs font-semibold text-white sm:h-auto sm:w-auto sm:gap-1 sm:px-2.5 sm:py-1'>
+                          <CheckCircle2 className='size-3.5' />
+                          <span className='sr-only sm:not-sr-only'>選択中</span>
+                        </span>
+                      )}
                     </button>
                   ))
                 )}
@@ -213,7 +223,9 @@ export function AdminProductListPresenter({
                     </Badge>
                   </td>
                   <td className='px-5 py-4 text-stone-600'>
-                    {product.updatedAt}
+                    <time dateTime={`${product.updatedAt.replace(' ', 'T')}Z`}>
+                      {formatJstDateTime(product.updatedAt)}
+                    </time>
                   </td>
                   <td className='px-5 py-4 text-right'>
                     {product.status === 'ABORTED' && (

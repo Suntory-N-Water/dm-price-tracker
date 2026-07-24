@@ -14,6 +14,7 @@ const currentTimestamp = sql`(CURRENT_TIMESTAMP)`;
 export const products = sqliteTable('products', {
   code: text('code').primaryKey(),
   name: text('name').notNull(),
+  displayOrder: integer('display_order').notNull().default(0),
   createdAt: text('created_at').notNull().default(currentTimestamp),
 });
 

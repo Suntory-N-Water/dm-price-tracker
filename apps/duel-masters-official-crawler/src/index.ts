@@ -60,13 +60,16 @@ export default class DuelMastersOfficialCrawlerService extends WorkerEntrypoint<
     const products = extractProducts(await response.text());
     const displayDb = createDisplayDatabase(this.env.DISPLAY_DB);
 
-    for (let offset = 0; offset < products.length; offset += 50) {
+    for (let offset = 0; offset < products.length; offset += 33) {
       await displayDb
         .insert(displayProducts)
-        .values(products.slice(offset, offset + 50))
+        .values(products.slice(offset, offset + 33))
         .onConflictDoUpdate({
           target: displayProducts.code,
-          set: { name: sql`excluded.name` },
+          set: {
+            name: sql`excluded.name`,
+            displayOrder: sql`excluded.display_order`,
+          },
         });
     }
 

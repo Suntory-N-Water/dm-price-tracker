@@ -15,8 +15,16 @@ describe('公式サイトの商品一覧', () => {
     const result = sut(html);
 
     expect(result).toEqual([
-      { code: '26ex2', name: 'DM26-EX2 悪感謝祭 カリスマBEST' },
-      { code: '26rp2', name: 'DM26-RP2 ドギラゴン逆の段' },
+      {
+        code: '26ex2',
+        name: 'DM26-EX2 悪感謝祭 カリスマBEST',
+        displayOrder: 0,
+      },
+      {
+        code: '26rp2',
+        name: 'DM26-RP2 ドギラゴン逆の段',
+        displayOrder: 1,
+      },
     ]);
   });
 
@@ -31,7 +39,9 @@ describe('公式サイトの商品一覧', () => {
 
     const result = sut(html);
 
-    expect(result).toEqual([{ code: '26ex2', name: 'カリスマBEST' }]);
+    expect(result).toEqual([
+      { code: '26ex2', name: 'カリスマBEST', displayOrder: 0 },
+    ]);
   });
 
   it('商品を抽出できない時、同期エラーになること', () => {
