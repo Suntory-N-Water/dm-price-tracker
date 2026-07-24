@@ -1,5 +1,6 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import { createCrawlerDatabase, executes, jobs } from '@cf-crawler/core';
+import { launch } from '@cloudflare/playwright';
 import {
   createDisplayDatabase,
   products as displayProducts,
@@ -47,17 +48,25 @@ export default class DuelMastersOfficialCrawlerService extends WorkerEntrypoint<
   }
 
   async syncProducts(): Promise<{ syncedCount: number }> {
-    const response = await fetch('https://dm.takaratomy.co.jp/card/', {
-      headers: {
-        accept: 'text/html,application/xhtml+xml',
-        'user-agent':
-          'Mozilla/5.0 (compatible; cf-crawler/1.0; +https://dm.takaratomy.co.jp/card/)',
-      },
-    });
-    if (!response.ok) {
-      throw new Error(`商品一覧の取得に失敗しました: ${response.status}`);
+    const browser = await launch(this.env.BROWSER);
+    let html: string;
+
+    try {
+      const page = await browser.newPage();
+      const response = await page.goto('https://dm.takaratomy.co.jp/card/', {
+        waitUntil: 'domcontentloaded',
+      });
+      if (response === null || !response.ok()) {
+        throw new Error(
+          `商品一覧の取得に失敗しました: ${response?.status() ?? '応答なし'}`,
+        );
+      }
+      html = await page.content();
+    } finally {
+      await browser.close();
     }
-    const products = extractProducts(await response.text());
+
+    const products = extractProducts(html);
     const displayDb = createDisplayDatabase(this.env.DISPLAY_DB);
 
     for (let offset = 0; offset < products.length; offset += 33) {

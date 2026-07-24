@@ -11,6 +11,7 @@ import {
   type WorkerResult,
 } from '@cf-crawler/core';
 import type { Job } from '@cf-crawler/core/schema';
+import { launch } from '@cloudflare/playwright';
 import { parseHTML } from 'linkedom';
 import * as v from 'valibot';
 import type { CrawlParams } from '../lib/crawlParams';
@@ -23,12 +24,6 @@ import {
   LIST_KIND,
   listJobMetaSchema,
 } from './duelMastersOfficialSite';
-
-const REQUEST_HEADERS = {
-  accept: 'text/html,application/xhtml+xml',
-  'user-agent':
-    'Mozilla/5.0 (compatible; cf-crawler/1.0; +https://dm.takaratomy.co.jp/card/)',
-};
 
 export class DuelMastersOfficialCrawlerOrchestrator extends BaseOrchestrator<
   CrawlParams,
@@ -63,55 +58,67 @@ export class DuelMastersOfficialCrawlerJob extends BaseJob<Env> {
         const cardIds = new Set<string>();
         let pageCount = 1;
         let productName = '';
+        const browser = await launch(this.env.BROWSER);
 
-        const catalogResponse = await fetch(
-          'https://dm.takaratomy.co.jp/card/',
-          { headers: REQUEST_HEADERS },
-        );
-        if (!catalogResponse.ok) {
-          throw new Error(
-            `商品一覧の取得に失敗しました: ${catalogResponse.status}`,
+        try {
+          const page = await browser.newPage();
+          const catalogResponse = await page.goto(
+            'https://dm.takaratomy.co.jp/card/',
+            { waitUntil: 'domcontentloaded' },
           );
-        }
-        const catalogHtml = await catalogResponse.text();
-        productName = extractProductName(catalogHtml, meta.productCode);
-
-        for (let page = 1; page <= pageCount; page += 1) {
-          await scheduler.wait(1000);
-          const body = new URLSearchParams();
-          body.set('suggest', 'on');
-          body.append('keyword_type[]', 'card_name');
-          body.append('keyword_type[]', 'card_ruby');
-          body.append('keyword_type[]', 'card_text');
-          body.append('culture_cond[]', '単色');
-          body.append('culture_cond[]', '多色');
-          body.set('pagenum', String(page));
-          body.set('samename', 'show');
-          body.set('products', meta.productCode);
-          body.set('sort', 'release_new');
-          const response = await fetch('https://dm.takaratomy.co.jp/card/', {
-            method: 'POST',
-            headers: {
-              ...REQUEST_HEADERS,
-              'content-type':
-                'application/x-www-form-urlencoded; charset=UTF-8',
-              'x-requested-with': 'XMLHttpRequest',
-            },
-            body,
-          });
-          if (!response.ok) {
+          if (catalogResponse === null || !catalogResponse.ok()) {
             throw new Error(
-              `商品別カード一覧の取得に失敗しました: ${response.status}`,
+              `商品一覧の取得に失敗しました: ${catalogResponse?.status() ?? '応答なし'}`,
             );
           }
-          const listPage = extractListPage(
-            await response.text(),
+          productName = extractProductName(
+            await page.content(),
             meta.productCode,
           );
-          pageCount = listPage.pageCount;
-          for (const cardId of listPage.cardIds) {
-            cardIds.add(cardId);
+
+          for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+            await scheduler.wait(1000);
+            const body = new URLSearchParams();
+            body.set('suggest', 'on');
+            body.append('keyword_type[]', 'card_name');
+            body.append('keyword_type[]', 'card_ruby');
+            body.append('keyword_type[]', 'card_text');
+            body.append('culture_cond[]', '単色');
+            body.append('culture_cond[]', '多色');
+            body.set('pagenum', String(pageNumber));
+            body.set('samename', 'show');
+            body.set('products', meta.productCode);
+            body.set('sort', 'release_new');
+            const response = await page.evaluate(async (requestBody) => {
+              const result = await fetch('https://dm.takaratomy.co.jp/card/', {
+                method: 'POST',
+                headers: {
+                  'content-type':
+                    'application/x-www-form-urlencoded; charset=UTF-8',
+                  'x-requested-with': 'XMLHttpRequest',
+                },
+                body: requestBody,
+              });
+
+              return {
+                ok: result.ok,
+                status: result.status,
+                html: await result.text(),
+              };
+            }, body.toString());
+            if (!response.ok) {
+              throw new Error(
+                `商品別カード一覧の取得に失敗しました: ${response.status}`,
+              );
+            }
+            const listPage = extractListPage(response.html, meta.productCode);
+            pageCount = listPage.pageCount;
+            for (const cardId of listPage.cardIds) {
+              cardIds.add(cardId);
+            }
           }
+        } finally {
+          await browser.close();
         }
 
         const registeredCardIds = await findRegisteredCardIds(
@@ -137,60 +144,52 @@ export class DuelMastersOfficialCrawlerJob extends BaseJob<Env> {
       case DETAIL_KIND: {
         const meta = v.parse(detailJobMetaSchema, parseMeta(job.meta));
         await scheduler.wait(1000);
-        const response = await fetch(job.url, { headers: REQUEST_HEADERS });
-        if (!response.ok) {
-          throw new Error(
-            `カード詳細の取得に失敗しました: ${response.status} ${job.url}`,
-          );
-        }
-        const html = await response.text();
-        const { document } = parseHTML(html);
-        const cardNameElement = document.querySelector('h3.card-name');
-        cardNameElement?.querySelector('span.packname')?.remove();
-        const name = cardNameElement?.textContent?.trim() ?? '';
-        const imageSrc = document
-          .querySelector('.card-img img[src]')
-          ?.getAttribute('src');
-        if (name === '' || imageSrc === null || imageSrc === undefined) {
-          throw new Error(
-            `カード詳細の必須項目を抽出できません: ${meta.cardId}`,
-          );
-        }
-        const extension =
-          new URL(imageSrc, 'https://dm.takaratomy.co.jp').pathname
-            .match(/\.(?:jpe?g|png|webp)$/i)?.[0]
-            ?.toLowerCase() ?? '.jpg';
-        const imageKey = `cards/${meta.cardId}${extension}`;
-        const imageUrl = new URL(
-          imageSrc,
-          'https://dm.takaratomy.co.jp',
-        ).toString();
+        const browser = await launch(this.env.BROWSER);
 
-        await scheduler.wait(1000);
-        const imageResponse = await fetch(imageUrl);
-        if (!imageResponse.ok || imageResponse.body === null) {
-          throw new Error(
-            `カード画像の取得に失敗しました: ${imageResponse.status} ${imageUrl}`,
-          );
-        }
-        await this.env.CARD_IMAGES.put(imageKey, imageResponse.body, {
-          httpMetadata: {
-            contentType:
-              imageResponse.headers.get('content-type') ?? 'image/jpeg',
-          },
-        });
-        return createRecords([
-          {
-            url: job.url,
-            data: {
-              id: meta.cardId,
-              productCode: meta.productCode,
-              productName: meta.productName,
-              name,
-              imageKey,
+        try {
+          const page = await browser.newPage({
+            deviceScaleFactor: 2,
+            viewport: { width: 1280, height: 960 },
+          });
+          const response = await page.goto(job.url, {
+            waitUntil: 'domcontentloaded',
+          });
+          if (response === null || !response.ok()) {
+            throw new Error(
+              `カード詳細の取得に失敗しました: ${response?.status() ?? '応答なし'} ${job.url}`,
+            );
+          }
+          const { document } = parseHTML(await page.content());
+          const cardNameElement = document.querySelector('h3.card-name');
+          cardNameElement?.querySelector('span.packname')?.remove();
+          const name = cardNameElement?.textContent?.trim() ?? '';
+          const imageLocator = page.locator('.card-img img').first();
+          if (name === '' || (await imageLocator.count()) === 0) {
+            throw new Error(
+              `カード詳細の必須項目を抽出できません: ${meta.cardId}`,
+            );
+          }
+          await imageLocator.waitFor({ state: 'visible' });
+          const imageKey = `cards/${meta.cardId}.png`;
+          const image = await imageLocator.screenshot({ type: 'png' });
+          await this.env.CARD_IMAGES.put(imageKey, image, {
+            httpMetadata: { contentType: 'image/png' },
+          });
+          return createRecords([
+            {
+              url: job.url,
+              data: {
+                id: meta.cardId,
+                productCode: meta.productCode,
+                productName: meta.productName,
+                name,
+                imageKey,
+              },
             },
-          },
-        ]);
+          ]);
+        } finally {
+          await browser.close();
+        }
       }
 
       default:

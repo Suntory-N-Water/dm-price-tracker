@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@cf-crawler/core": "workspace:*",
+    "@cloudflare/playwright": "catalog:",
     "@dm-price-tracker/display-db": "workspace:*",
     "drizzle-orm": "catalog:",
     "linkedom": "catalog:",

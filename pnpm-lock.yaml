@@ -74,6 +74,9 @@ importers:
       '@cf-crawler/core':
         specifier: workspace:*
         version: link:../../packages/cf-crawler-core
+      '@cloudflare/playwright':
+        specifier: 'catalog:'
+        version: 1.3.0
       '@dm-price-tracker/display-db':
         specifier: workspace:*
         version: link:../../packages/display-db
