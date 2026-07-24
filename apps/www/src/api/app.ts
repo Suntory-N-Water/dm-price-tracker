@@ -21,16 +21,22 @@ export function createApp({
   localAuthentication?: LocalAuthentication;
 } = {}) {
   const app = new Hono<ApiEnv>().basePath('/api');
+  const limitRequestBody = bodyLimit({
+    maxSize: 16 * 1024,
+    onError: (context) =>
+      context.json({ error: 'リクエストが大きすぎます' }, 413),
+  });
 
   app.get('/health', (context) => context.json({ ok: true }));
-  app.use(
-    '*',
-    bodyLimit({
-      maxSize: 16 * 1024,
-      onError: (context) =>
-        context.json({ error: 'リクエストが大きすぎます' }, 413),
-    }),
-  );
+  app.use('*', async (context, next) => {
+    if (
+      !context.req.raw.headers.has('content-length') &&
+      !context.req.raw.headers.has('transfer-encoding')
+    ) {
+      return await next();
+    }
+    return await limitRequestBody(context, next);
+  });
   app.use('*', authentication(accessTokenVerifier, localAuthentication));
   const routes = app
     .route('/settings', settingsRoutes)
