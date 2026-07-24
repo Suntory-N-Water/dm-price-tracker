@@ -32,11 +32,11 @@ describe('価格詳細', () => {
 
     await user.click(
       screen.getByRole('button', {
-        name: '2026年7月19日 12:00、3,200円',
+        name: '2026年7月19日 21:00、3,200円',
       }),
     );
 
-    expect(screen.getByText('2026年7月19日 12:00')).toBeVisible();
+    expect(screen.getByText('2026年7月19日 21:00')).toBeVisible();
     expect(screen.getAllByText('¥3,200')).toHaveLength(2);
     expect(
       screen.getByText('この時点の検索結果画像は残っていません'),

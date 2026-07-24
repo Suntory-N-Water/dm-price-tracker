@@ -7,17 +7,10 @@ import { useMemo, useState } from 'react';
 import type { PriceHistory } from '@/external/dto/api-schemas';
 import { Button } from '@/shared/components/ui/button';
 import { Card } from '@/shared/components/ui/card';
+import { formatJstDateTime } from '@/shared/lib/date-time';
 import { cn } from '@/shared/lib/utils';
 
 type Period = '24h' | '7d' | '30d' | 'all';
-
-function formatCrawledAt(value: string) {
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/u);
-  if (match === null) {
-    return value;
-  }
-  return `${Number(match[1])}年${Number(match[2])}月${Number(match[3])}日 ${match[4]}:${match[5]}`;
-}
 
 export function PriceHistoryPresenter({
   history,
@@ -68,7 +61,7 @@ export function PriceHistoryPresenter({
           width={200}
           height={280}
           unoptimized
-          className='h-36 w-25 rounded-lg bg-stone-100 object-cover'
+          className='h-36 w-25 rounded-lg bg-[var(--surface-ceramic)] object-contain p-1'
         />
         <div>
           {productName !== undefined && (
@@ -134,7 +127,7 @@ export function PriceHistoryPresenter({
                   <button
                     key={point.crawledAt}
                     type='button'
-                    aria-label={`${formatCrawledAt(point.crawledAt)}、${point.price.toLocaleString('ja-JP')}円`}
+                    aria-label={`${formatJstDateTime(point.crawledAt)}、${point.price.toLocaleString('ja-JP')}円`}
                     onClick={() => setSelectedAt(point.crawledAt)}
                     className={cn(
                       'absolute z-10 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-emerald-700 shadow ring-2 ring-emerald-700/20 transition-transform hover:scale-125',
@@ -147,16 +140,16 @@ export function PriceHistoryPresenter({
               })}
               <span className='absolute bottom-2 left-8 text-xs text-stone-500'>
                 {
-                  formatCrawledAt(visiblePoints[0]?.crawledAt ?? '').split(
+                  formatJstDateTime(visiblePoints[0]?.crawledAt ?? '').split(
                     ' ',
                   )[0]
                 }
               </span>
               <span className='absolute bottom-2 right-8 text-xs text-stone-500'>
                 {
-                  formatCrawledAt(visiblePoints.at(-1)?.crawledAt ?? '').split(
-                    ' ',
-                  )[0]
+                  formatJstDateTime(
+                    visiblePoints.at(-1)?.crawledAt ?? '',
+                  ).split(' ')[0]
                 }
               </span>
               <span className='absolute left-2 top-5 text-xs text-stone-500'>
@@ -178,7 +171,7 @@ export function PriceHistoryPresenter({
               </h2>
               {selected !== undefined && (
                 <time className='mt-1 block text-sm text-stone-500'>
-                  {formatCrawledAt(selected.crawledAt)}
+                  {formatJstDateTime(selected.crawledAt)}
                 </time>
               )}
             </div>
@@ -200,7 +193,7 @@ export function PriceHistoryPresenter({
             ) : (
               <Image
                 src={selected.screenshotUrl}
-                alt={`${formatCrawledAt(selected.crawledAt)}のメルカリ検索結果`}
+                alt={`${formatJstDateTime(selected.crawledAt)}のメルカリ検索結果`}
                 width={1200}
                 height={800}
                 unoptimized
