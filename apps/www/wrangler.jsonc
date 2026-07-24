@@ -15,7 +15,8 @@
     {
       "binding": "DISPLAY_DB",
       "database_name": "duelmasters-display-db",
-      "preview_database_id": "duelmasters-display-db-local"
+      "preview_database_id": "duelmasters-display-db-local",
+      "database_id": "7edc2cfe-6f98-427f-bb91-feb03638a268"
     }
   ],
   "r2_buckets": [

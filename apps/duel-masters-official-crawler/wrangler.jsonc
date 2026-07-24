@@ -32,18 +32,24 @@
     {
       "binding": "DB",
       "database_name": "duel-masters-official-crawler-db",
-      "preview_database_id": "duel-masters-official-crawler-db-local"
+      "preview_database_id": "duel-masters-official-crawler-db-local",
+      "database_id": "9650692e-7552-4f62-a334-ac7833df9cc7"
     },
     {
       "binding": "DISPLAY_DB",
       "database_name": "duelmasters-display-db",
-      "preview_database_id": "duelmasters-display-db-local"
+      "preview_database_id": "duelmasters-display-db-local",
+      "database_id": "7edc2cfe-6f98-427f-bb91-feb03638a268"
     }
   ],
   "r2_buckets": [
     {
       "binding": "CARD_IMAGES",
       "bucket_name": "duelmasters-card-images"
+    },
+    {
+      "bucket_name": "duelmasters-card-images",
+      "binding": "duelmasters_card_images"
     }
   ]
 }

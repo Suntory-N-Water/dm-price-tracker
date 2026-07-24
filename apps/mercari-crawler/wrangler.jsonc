@@ -11,6 +11,10 @@
     {
       "binding": "SCREENSHOTS",
       "bucket_name": "mercari-crawler-screenshots"
+    },
+    {
+      "bucket_name": "mercari-crawler-screenshots",
+      "binding": "mercari_crawler_screenshots"
     }
   ],
   "triggers": {
@@ -37,13 +41,15 @@
     {
       "binding": "DB",
       "database_name": "mercari-crawler-db",
-      "preview_database_id": "mercari-crawler-db-local"
+      "preview_database_id": "mercari-crawler-db-local",
+      "database_id": "f328e20e-e953-46bf-8670-f0b184a2a4c1"
     },
     {
       "binding": "DISPLAY_DB",
       "database_name": "duelmasters-display-db",
       "preview_database_id": "duelmasters-display-db-local",
-      "migrations_dir": "./migrations-display-db"
+      "migrations_dir": "./migrations-display-db",
+      "database_id": "7edc2cfe-6f98-427f-bb91-feb03638a268"
     }
   ]
 }
