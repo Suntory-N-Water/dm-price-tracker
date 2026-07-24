@@ -24,7 +24,7 @@ export function AppSidebar({ userType }: { userType: 'user' | 'admin' }) {
   return (
     <aside className='border-b border-stone-200 bg-white md:min-h-[calc(100vh-65px)] md:w-64 md:border-b-0 md:border-r'>
       <nav
-        className='flex gap-1 overflow-x-auto p-3 md:flex-col md:p-5'
+        className='flex gap-1 overflow-x-auto p-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-col md:p-5'
         aria-label={userType === 'admin' ? '管理者メニュー' : '利用者メニュー'}
       >
         {items.map(({ href, label, icon: Icon }) => {

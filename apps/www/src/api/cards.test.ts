@@ -9,7 +9,10 @@ describe('カード検索', () => {
     await env.DISPLAY_DB.batch([
       env.DISPLAY_DB.prepare(
         `INSERT INTO products (code, name)
-         VALUES ('26ex2', 'カリスマBEST'), ('26rp2', 'ドギラゴン逆の段')`,
+         VALUES
+           ('26ex2', 'カリスマBEST'),
+           ('26rp2', 'ドギラゴン逆の段'),
+           ('25rp4', 'クロール前の商品')`,
       ),
       env.DISPLAY_DB.prepare(
         `INSERT INTO cards (id, product_id, name, image_key)
@@ -112,6 +115,26 @@ describe('カード検索', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       products: [{ code: '26rp2', name: 'ドギラゴン逆の段' }],
+    });
+  });
+
+  it('カード情報を取得していない商品がある時、絞り込み候補に含まれないこと', async () => {
+    const sut = createApp({
+      verifyAccessToken: async () => 'friend@example.com',
+    });
+
+    const response = await sut.request(
+      '/api/products',
+      { headers: { 'cf-access-jwt-assertion': 'valid-token' } },
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      products: [
+        { code: '26ex2', name: 'カリスマBEST' },
+        { code: '26rp2', name: 'ドギラゴン逆の段' },
+      ],
     });
   });
 });

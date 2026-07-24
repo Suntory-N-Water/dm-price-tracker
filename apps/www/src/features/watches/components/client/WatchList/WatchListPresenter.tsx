@@ -71,12 +71,7 @@ export function WatchListPresenter({
 
   return (
     <div className='space-y-6'>
-      <div>
-        <p className='mb-1 text-sm font-semibold text-emerald-700'>
-          PRICE TRACKING
-        </p>
-        <h1 className='text-3xl font-bold tracking-tight'>価格チェック中</h1>
-      </div>
+      <h1 className='text-3xl font-bold tracking-tight'>価格チェック中</h1>
 
       <div className='flex flex-col gap-3 lg:flex-row'>
         <label
@@ -170,7 +165,7 @@ export function WatchListPresenter({
                   width={136}
                   height={192}
                   unoptimized
-                  className='h-24 w-17 shrink-0 rounded-md bg-stone-100 object-cover'
+                  className='h-24 w-17 shrink-0 rounded-md bg-[var(--surface-ceramic)] object-contain p-1'
                 />
                 <div className='min-w-0'>
                   <h2 className='font-bold leading-snug'>{watch.card.name}</h2>
