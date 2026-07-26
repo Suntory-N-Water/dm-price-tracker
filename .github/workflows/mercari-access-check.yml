@@ -48,9 +48,6 @@ jobs:
             agent-browser --session mercari-check snapshot -i
           )"
           printf '%s\n' "$snapshot"
-          # shellcheck disable=SC2016
-          agent-browser --session mercari-check eval \
-            '(() => { const anchor = document.querySelector(`a[data-testid="thumbnail-link"][href^="/item/"]`); const image = anchor?.querySelector("img"); return { anchorAttributes: anchor === null ? {} : Object.fromEntries(Array.from(anchor.attributes, ({ name, value }) => [name, value])), imageAttributes: image === null || image === undefined ? {} : Object.fromEntries(Array.from(image.attributes, ({ name, value }) => [name, value])), html: anchor?.outerHTML ?? "" }; })()'
 
           current_url="$(agent-browser --session mercari-check get url)"
           case "$current_url" in
@@ -61,12 +58,12 @@ jobs:
               ;;
           esac
 
-          agent-browser --session mercari-check screenshot "$SCREENSHOT_PATH"
           # shellcheck disable=SC2016
           agent-browser --session mercari-check eval \
-            'Array.from(document.querySelectorAll(`a[data-testid="thumbnail-link"][href^="/item/"]`)).map((anchor) => { const imageAlt = anchor.querySelector("img")?.getAttribute("alt") ?? ""; const yenMatch = imageAlt.match(/([0-9,]+)円/); return { url: anchor.href, title: anchor.querySelector(`[data-testid="thumbnail-item-name"]`)?.textContent?.trim() ?? "", visiblePrice: anchor.querySelector(".merPrice")?.textContent?.trim() ?? "", imageAlt, yenPrice: yenMatch === null ? null : Number(yenMatch[1].replaceAll(",", "")) }; })' \
+            'Array.from(document.querySelectorAll(`a[data-testid="thumbnail-link"][href^="/item/"]`)).map((anchor) => { const thumbnailLabel = anchor.querySelector(`.merItemThumbnail[role="img"][aria-label]`)?.getAttribute("aria-label") ?? ""; const yenMatch = thumbnailLabel.match(/([0-9,]+)円(?:\s+US\$[0-9,.]+)?$/); const priceElement = anchor.querySelector(".merPrice"); const originalVisiblePrice = priceElement?.textContent?.trim() ?? ""; if (yenMatch !== null && priceElement !== null) { priceElement.textContent = `¥${yenMatch[1]}`; } return { url: anchor.href, title: anchor.querySelector(`[data-testid="thumbnail-item-name"]`)?.textContent?.trim() ?? "", originalVisiblePrice, thumbnailLabel, yenPrice: yenMatch === null ? null : Number(yenMatch[1].replaceAll(",", "")) }; })' \
             >/tmp/items.json
           jq . /tmp/items.json
+          agent-browser --session mercari-check screenshot "$SCREENSHOT_PATH"
 
           item_count="$(jq 'length' /tmp/items.json)"
           if (( item_count == 0 )); then
@@ -76,7 +73,7 @@ jobs:
           yen_count="$(
             jq '[.[] | select(.yenPrice != null)] | length' /tmp/items.json
           )"
-          first_visible_price="$(jq -r '.[0].visiblePrice' /tmp/items.json)"
+          first_visible_price="$(jq -r '.[0].originalVisiblePrice' /tmp/items.json)"
           first_yen_price="$(jq -r '.[0].yenPrice' /tmp/items.json)"
 
           {
@@ -136,7 +133,7 @@ jobs:
           run_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           gh issue comment "$ISSUE_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
-            --body "$(printf 'GitHub-hosted runnerの初期状態で検索結果を%s件取得し、%s件から日本円価格を取得できました（先頭: %s円、表示価格: %s）。\n\n![メルカリ検索ページ](%s)\n\n[Workflow run](%s)' "$ITEM_COUNT" "$YEN_COUNT" "$FIRST_YEN_PRICE" "$FIRST_VISIBLE_PRICE" "$image_url" "$run_url")"
+            --body "$(printf 'GitHub-hosted runnerの初期状態で検索結果を%s件取得し、%s件から日本円価格を取得できました（先頭: %s円、初期表示: %s）。スクリーンショットでは表示価格を日本円へ上書きしています。\n\n![メルカリ検索ページ](%s)\n\n[Workflow run](%s)' "$ITEM_COUNT" "$YEN_COUNT" "$FIRST_YEN_PRICE" "$FIRST_VISIBLE_PRICE" "$image_url" "$run_url")"
 
       - name: 日本円価格の取得結果を確認
         if: steps.capture.outputs.all_items_have_yen != 'true'
