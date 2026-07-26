@@ -42,6 +42,7 @@ jobs:
           agent-browser --session mercari-check open "$TARGET_URL"
           agent-browser --session mercari-check wait --load domcontentloaded
           agent-browser --session mercari-check wait 3000
+          agent-browser --session mercari-check snapshot -i
 
           current_url="$(agent-browser --session mercari-check get url)"
           case "$current_url" in
