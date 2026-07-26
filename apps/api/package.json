@@ -1,0 +1,38 @@
+{
+  "name": "@dm-price-tracker/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#api/*": "./src/*.ts"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/app.ts"
+    }
+  },
+  "scripts": {
+    "dev": "wrangler dev --var WEB_ORIGIN:http://localhost:3000 --var LOCAL_AUTH_EMAIL:developer@example.com --var LOCAL_AUTH_IS_ADMIN:true",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "deploy": "wrangler deploy --minify",
+    "test": "vitest run",
+    "type-check": "pnpm run cf-typegen:check && tsc --noEmit",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv",
+    "cf-typegen:check": "wrangler types --env-interface CloudflareEnv --check",
+    "r2:lifecycle:screenshots": "wrangler r2 bucket lifecycle add mercari-crawler-screenshots delete-screenshots-after-3-days screenshots/ --expire-days 3 --config wrangler.jsonc"
+  },
+  "dependencies": {
+    "@dm-price-tracker/display-db": "workspace:*",
+    "@hono/standard-validator": "0.3.0",
+    "drizzle-orm": "catalog:",
+    "hono": "4.12.32",
+    "jose": "6.2.4",
+    "valibot": "1.4.2"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.18.7",
+    "typescript": "catalog:",
+    "vitest": "4.1.10",
+    "wrangler": "catalog:"
+  }
+}
