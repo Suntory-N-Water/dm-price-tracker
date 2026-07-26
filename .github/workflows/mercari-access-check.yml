@@ -88,12 +88,17 @@ jobs:
               >/dev/null
           fi
 
-          content="$(base64 --wrap=0 "$SCREENSHOT_PATH")"
+          base64 --wrap=0 "$SCREENSHOT_PATH" |
+            jq \
+              --raw-input \
+              --slurp \
+              --arg message "chore: メルカリ接続確認の画像を保存" \
+              --arg branch "$artifact_branch" \
+              '{ message: $message, content: ., branch: $branch }' \
+              >/tmp/upload.json
           gh api --method PUT \
             "repos/${GITHUB_REPOSITORY}/contents/${artifact_path}" \
-            -f message="chore: メルカリ接続確認の画像を保存" \
-            -f content="$content" \
-            -f branch="$artifact_branch" \
+            --input /tmp/upload.json \
             >/dev/null
 
           image_url="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${artifact_branch}/${artifact_path}"
