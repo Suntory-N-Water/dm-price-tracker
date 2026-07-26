@@ -32,5 +32,5 @@
     "../duel-masters-official-crawler/worker-configuration.d.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "worker.ts"]
 }

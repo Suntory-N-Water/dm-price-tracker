@@ -5,8 +5,13 @@ import { settingsRoutes } from './routes/settings';
 import { cardRoutes } from './routes/cards';
 import { cardWatchRoutes } from './routes/card-watches';
 import { adminProductRoutes } from './routes/admin-products';
+import { crawlerRoutes } from './routes/crawler';
 import { productRoutes } from './routes/products';
 import type { AccessTokenVerifier, ApiEnv, LocalAuthentication } from './types';
+import {
+  CrawlAlreadyRunningError,
+  NoCrawlTargetsError,
+} from '@/external/service/crawler/crawl-runs';
 
 export function createApp({
   verifyAccessToken: accessTokenVerifier = verifyAccessToken,
@@ -28,6 +33,7 @@ export function createApp({
   });
 
   app.get('/health', (context) => context.json({ ok: true }));
+  app.route('/crawler', crawlerRoutes);
   app.use('*', async (context, next) => {
     if (
       !context.req.raw.headers.has('content-length') &&
@@ -49,6 +55,12 @@ export function createApp({
     context.json({ error: 'APIが見つかりません' }, 404),
   );
   routes.onError((error, context) => {
+    if (
+      error instanceof CrawlAlreadyRunningError ||
+      error instanceof NoCrawlTargetsError
+    ) {
+      return context.json({ error: error.message }, 409);
+    }
     console.error('API処理中に予期しないエラーが発生しました', error);
     return context.json({ error: 'サーバーエラーが発生しました' }, 500);
   });

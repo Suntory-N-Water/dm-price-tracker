@@ -1,11 +1,24 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "dm-price-tracker",
-  "main": ".open-next/worker.js",
+  "main": "./worker.ts",
   "compatibility_date": "2026-07-23",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "secrets": {
-    "required": ["TEAM_DOMAIN", "POLICY_AUD", "ADMIN_POLICY_AUD", "ADMIN_EMAIL"]
+    "required": [
+      "TEAM_DOMAIN",
+      "POLICY_AUD",
+      "ADMIN_POLICY_AUD",
+      "ADMIN_EMAIL",
+      "CRAWLER_API_KEY",
+      "GITHUB_DISPATCH_TOKEN"
+    ]
+  },
+  "vars": {
+    "GITHUB_REPOSITORY": "Suntory-N-Water/dm-price-tracker"
+  },
+  "triggers": {
+    "crons": ["*/30 * * * *"]
   },
   "assets": {
     "directory": ".open-next/assets",

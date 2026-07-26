@@ -3,13 +3,13 @@ import { Hono } from 'hono';
 import * as v from 'valibot';
 import type { ApiEnv } from '../types';
 import {
-  findOfficialProductCrawls,
-  startOfficialProductCrawl,
-  syncOfficialProducts,
-} from '@/external/client/official-crawler-client';
+  startOfficialCardDetailsCrawl,
+  startOfficialCardIdsCrawl,
+  startOfficialProductsCrawl,
+} from '@/external/service/crawler/crawl-runs';
+import { findAdminCrawlerStatus } from '@/external/service/crawler/admin-crawl-status';
 import {
   findAvailableProducts,
-  findProductsByCodes,
   productExists,
 } from '@/external/repository/product-repository';
 
@@ -28,32 +28,7 @@ const availableProductSearchSchema = v.object({
 
 export const adminProductRoutes = new Hono<ApiEnv>()
   .get('/', async (context) => {
-    const crawls = await findOfficialProductCrawls(
-      context.env.OFFICIAL_CRAWLER,
-    );
-    const products = await findProductsByCodes(
-      context.env.DISPLAY_DB,
-      crawls.map(({ productCode }) => productCode),
-    );
-    const productByCode = new Map(
-      products.map((product) => [product.code, product]),
-    );
-
-    return context.json({
-      products: crawls.flatMap((crawl) => {
-        const product = productByCode.get(crawl.productCode);
-        return product === undefined
-          ? []
-          : [
-              {
-                ...product,
-                status: crawl.status,
-                updatedAt: crawl.updatedAt,
-                error: crawl.error,
-              },
-            ];
-      }),
-    });
+    return context.json(await findAdminCrawlerStatus(context.env.DISPLAY_DB));
   })
   .get(
     '/available',
@@ -63,12 +38,10 @@ export const adminProductRoutes = new Hono<ApiEnv>()
       }
     }),
     async (context) => {
-      const crawls = await findOfficialProductCrawls(
-        context.env.OFFICIAL_CRAWLER,
-      );
+      const status = await findAdminCrawlerStatus(context.env.DISPLAY_DB);
       const products = await findAvailableProducts(
         context.env.DISPLAY_DB,
-        crawls.map(({ productCode }) => productCode),
+        status.products.map(({ code }) => code),
         context.req.valid('query').name,
       );
 
@@ -76,7 +49,7 @@ export const adminProductRoutes = new Hono<ApiEnv>()
     },
   )
   .post('/sync', async (context) =>
-    context.json(await syncOfficialProducts(context.env.OFFICIAL_CRAWLER)),
+    context.json(await startOfficialProductsCrawl(context.env), 202),
   )
   .post(
     '/:productCode/crawl',
@@ -92,10 +65,26 @@ export const adminProductRoutes = new Hono<ApiEnv>()
       }
 
       return context.json(
-        await startOfficialProductCrawl(
-          context.env.OFFICIAL_CRAWLER,
-          productCode,
-        ),
+        await startOfficialCardIdsCrawl(context.env, productCode),
+        202,
+      );
+    },
+  )
+  .post(
+    '/:productCode/card-details',
+    sValidator('param', productCodeSchema, (result, context) => {
+      if (!result.success) {
+        return context.json({ error: '入力値が不正です' }, 400);
+      }
+    }),
+    async (context) => {
+      const { productCode } = context.req.valid('param');
+      if (!(await productExists(context.env.DISPLAY_DB, productCode))) {
+        return context.json({ error: '商品が見つかりません' }, 404);
+      }
+
+      return context.json(
+        await startOfficialCardDetailsCrawl(context.env, productCode),
         202,
       );
     },

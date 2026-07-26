@@ -2,6 +2,9 @@ import { env } from 'cloudflare:test';
 
 export async function resetDisplayDb(): Promise<void> {
   await env.DISPLAY_DB.batch([
+    env.DISPLAY_DB.prepare('DELETE FROM crawl_targets'),
+    env.DISPLAY_DB.prepare('DELETE FROM crawl_runs'),
+    env.DISPLAY_DB.prepare('DELETE FROM pending_cards'),
     env.DISPLAY_DB.prepare('DELETE FROM screenshots'),
     env.DISPLAY_DB.prepare('DELETE FROM price_points'),
     env.DISPLAY_DB.prepare('DELETE FROM card_watches'),
