@@ -48,6 +48,9 @@ jobs:
             agent-browser --session mercari-check snapshot -i
           )"
           printf '%s\n' "$snapshot"
+          # shellcheck disable=SC2016
+          agent-browser --session mercari-check eval \
+            '(() => { const anchor = document.querySelector(`a[data-testid="thumbnail-link"][href^="/item/"]`); const image = anchor?.querySelector("img"); return { anchorAttributes: anchor === null ? {} : Object.fromEntries(Array.from(anchor.attributes, ({ name, value }) => [name, value])), imageAttributes: image === null || image === undefined ? {} : Object.fromEntries(Array.from(image.attributes, ({ name, value }) => [name, value])), html: anchor?.outerHTML ?? "" }; })()'
 
           current_url="$(agent-browser --session mercari-check get url)"
           case "$current_url" in
