@@ -17,7 +17,6 @@ function createBindings(): CloudflareEnv {
     DISPLAY_DB: env.DISPLAY_DB,
     CARD_IMAGES: env.CARD_IMAGES,
     SCREENSHOTS: env.SCREENSHOTS,
-    OFFICIAL_CRAWLER: {} as CloudflareEnv['OFFICIAL_CRAWLER'],
     TEAM_DOMAIN: 'https://example.cloudflareaccess.com',
     POLICY_AUD: 'user-audience',
     ADMIN_POLICY_AUD: 'admin-audience',

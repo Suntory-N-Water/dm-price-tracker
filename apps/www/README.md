@@ -19,29 +19,19 @@ cp apps/www/.env.local.example apps/www/.env.local
 `NODE_ENV=development` の時だけ有効で、本番のCloudflare Access認証には
 影響しません。
 
-リポジトリルートから次のコマンドを実行すると、3つのローカルD1へ
-マイグレーションを適用した後、画面・メルカリクローラー・公式サイト
-クローラーを並列起動します。D1とR2の状態はすべてルートの
-`.wrangler/state/v3` を共有します。
+リポジトリルートから次のコマンドを実行すると、表示用D1へ
+マイグレーションを適用した後、画面とNodeクローラーの型監視を
+並列起動します。D1とR2の状態はルートの`.wrangler/state/v3`を使います。
 
 ```bash
 pnpm dev
 ```
 
-画面は `http://localhost:3000` で確認できます。個別に起動する場合は
+画面は `http://localhost:3000` で確認できます。画面だけを起動する場合は
 次のルートコマンドを使用します。
 
 ```bash
 pnpm dev:www
-pnpm dev:mercari-crawler
-pnpm dev:official-crawler
-```
-
-ローカルではCronが自動実行されないため、価格取得を開始する時は別の
-ターミナルから実行します。
-
-```bash
-pnpm crawl:mercari
 ```
 
 ローカルDBのマイグレーションだけを実行する場合:
@@ -62,6 +52,8 @@ TEAM_DOMAIN=https://<team-name>.cloudflareaccess.com
 POLICY_AUD=<利用者向けAccessアプリケーションのAUD>
 ADMIN_POLICY_AUD=<管理者向けAccessアプリケーションのAUD>
 ADMIN_EMAIL=<管理者のメールアドレス>
+CRAWLER_API_KEY=<GitHub Actionsと共有するクローラー専用APIキー>
+GITHUB_DISPATCH_TOKEN=<Repository Dispatch用token>
 ```
 
 ## API
@@ -88,6 +80,9 @@ ADMIN_EMAIL=<管理者のメールアドレス>
 | GET | `/api/admin/products/available` | 未取得商品の検索 |
 | POST | `/api/admin/products/sync` | 公式商品一覧の手動同期 |
 | POST | `/api/admin/products/:productCode/crawl` | 商品単位のCard取得開始 |
+| POST | `/api/admin/products/:productCode/card-details` | 未完了Cardの詳細取得開始 |
+| GET | `/api/crawler/runs/:crawlRunId` | GitHub Actions向け未完了対象取得 |
+| POST | `/api/crawler/runs/:crawlRunId` | GitHub Actions向け結果保存 |
 
 ## 検証とデプロイ
 
@@ -102,5 +97,5 @@ pnpm --filter www run deploy
 Screenshotの3日保持は、R2 Lifecycle Ruleを一度設定します。
 
 ```bash
-pnpm --filter mercari-crawler run screenshots:lifecycle:add
+pnpm --filter www exec wrangler r2 bucket lifecycle add mercari-crawler-screenshots delete-screenshots-after-3-days screenshots/ --expire-days 3
 ```

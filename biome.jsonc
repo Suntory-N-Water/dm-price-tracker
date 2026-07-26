@@ -118,29 +118,5 @@
       "indentWidth": 2,
       "lineWidth": 80
     }
-  },
-  "overrides": [
-    {
-      "includes": ["apps/workflows-starter/src/**/*.ts"],
-      "linter": {
-        "rules": {
-          "correctness": {
-            // cloudflare:workers is provided by the Workers runtime.
-            "noUnresolvedImports": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": ["packages/cf-crawler-core/test/**/*.ts"],
-      "linter": {
-        "rules": {
-          "correctness": {
-            // cloudflare:test is provided by @cloudflare/vitest-pool-workers.
-            "noUnresolvedImports": "off"
-          }
-        }
-      }
-    }
-  ]
+  }
 }

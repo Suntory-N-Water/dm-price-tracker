@@ -48,11 +48,5 @@
       "binding": "SCREENSHOTS",
       "bucket_name": "mercari-crawler-screenshots"
     }
-  ],
-  "services": [
-    {
-      "binding": "OFFICIAL_CRAWLER",
-      "service": "duel-masters-official-crawler"
-    }
   ]
 }

@@ -8,6 +8,7 @@
     "crawl:official-products": "tsx src/official/products.ts",
     "crawl:official-card-ids": "tsx src/official/card-ids.ts",
     "crawl:official-card-details": "tsx src/official/card-details.ts",
+    "dev": "tsc --noEmit --watch --preserveWatchOutput",
     "test": "vitest run",
     "type-check": "tsc --noEmit"
   },

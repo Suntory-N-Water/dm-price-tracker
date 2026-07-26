@@ -29,7 +29,6 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "../duel-masters-official-crawler/worker-configuration.d.ts",
     "**/*.mts"
   ],
   "exclude": ["node_modules", "worker.ts"]

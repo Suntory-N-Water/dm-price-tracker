@@ -96,20 +96,7 @@ describe('Cloudflare Access認証', () => {
         isAdmin: true,
       },
     });
-    const bindings = {
-      ...env,
-      OFFICIAL_CRAWLER: {
-        crawl: async () => ({ id: 'unused', status: { status: 'complete' } }),
-        syncProducts: async () => ({ syncedCount: 0 }),
-        listProductCrawls: async () => [],
-      } as unknown as CloudflareEnv['OFFICIAL_CRAWLER'],
-    };
-
-    const response = await sut.request(
-      '/api/admin/products',
-      undefined,
-      bindings,
-    );
+    const response = await sut.request('/api/admin/products', undefined, env);
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
