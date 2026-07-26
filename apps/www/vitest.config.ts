@@ -22,7 +22,7 @@ export default defineConfig({
       miniflare: {
         bindings: {
           TEST_MIGRATIONS: await readD1Migrations(
-            path.join(dirname, '../mercari-crawler/migrations-display-db'),
+            path.join(dirname, '../../packages/display-db/migrations'),
           ),
         },
       },

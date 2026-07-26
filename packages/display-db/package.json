@@ -8,6 +8,9 @@
     "./schema": "./src/schema.ts"
   },
   "scripts": {
+    "db:generate": "pnpm exec drizzle-kit generate",
+    "db:migrate": "wrangler d1 migrations apply duelmasters-display-db --local --persist-to ../../.wrangler/state",
+    "db:migrate:remote": "wrangler d1 migrations apply duelmasters-display-db --remote",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
@@ -15,6 +18,8 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260721.1",
-    "typescript": "catalog:"
+    "drizzle-kit": "catalog:",
+    "typescript": "catalog:",
+    "wrangler": "catalog:"
   }
 }
