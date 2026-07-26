@@ -20,7 +20,7 @@ import { Input } from '@/shared/components/ui/input';
 export function CommonExcludeSettings() {
   const queryClient = useQueryClient();
   const query = useSuspenseQuery(commonExcludeKeywordsQueryOptions);
-  const [keywords, setKeywords] = useState([
+  const [keywords, setKeywords] = useState(() => [
     ...query.data.keywords,
     ...Array.from({ length: 3 - query.data.keywords.length }, () => ''),
   ]);
