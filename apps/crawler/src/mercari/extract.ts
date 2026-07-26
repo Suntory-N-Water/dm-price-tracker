@@ -1,6 +1,7 @@
 import type { Page } from 'playwright';
 
 const ITEM_SELECTOR = 'a[data-testid="thumbnail-link"][href^="/item/"]';
+const SEARCH_RESULT_SELECTOR = '#search-result';
 const YEN_PRICE_PATTERN = /([0-9,]+)円(?:\s+US\$[0-9,.]+)?$/u;
 
 export type MercariTarget = {
@@ -66,7 +67,7 @@ export async function extractMercariSearch(
     }
     return {
       items: [],
-      screenshot: await page.screenshot({ fullPage: true }),
+      screenshot: await page.locator(SEARCH_RESULT_SELECTOR).screenshot(),
     };
   }
 
@@ -128,6 +129,6 @@ export async function extractMercariSearch(
 
   return {
     items: [...itemsByUrl.values()],
-    screenshot: await page.screenshot({ fullPage: true }),
+    screenshot: await page.locator(SEARCH_RESULT_SELECTOR).screenshot(),
   };
 }
