@@ -37,9 +37,24 @@ export function PriceHistoryPresenter({
   const selected =
     history.pricePoints.find((point) => point.crawledAt === selectedAt) ??
     history.pricePoints.at(-1);
-  const prices = visiblePoints.map((point) => point.price);
-  const minPrice = prices.length === 0 ? 0 : Math.min(...prices);
-  const maxPrice = prices.length === 0 ? 0 : Math.max(...prices);
+  // Math.min(...prices) は価格点が増えるとスプレッドの引数上限に達するため使わない
+  const { minPrice, maxPrice } = useMemo(() => {
+    const first = visiblePoints[0];
+    if (first === undefined) {
+      return { minPrice: 0, maxPrice: 0 };
+    }
+    let min = first.price;
+    let max = first.price;
+    for (const point of visiblePoints) {
+      if (point.price < min) {
+        min = point.price;
+      }
+      if (point.price > max) {
+        max = point.price;
+      }
+    }
+    return { minPrice: min, maxPrice: max };
+  }, [visiblePoints]);
   const priceRange = Math.max(1, maxPrice - minPrice);
 
   return (
