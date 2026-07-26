@@ -6,10 +6,12 @@ import {
   createDisplayDatabase,
   pendingCards,
   pricePoints,
+  priceSeries,
   products,
+  searchConditions,
   screenshots,
 } from '@dm-price-tracker/display-db';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
@@ -122,36 +124,37 @@ export const crawlerRoutes = new Hono<ApiEnv>()
       }
 
       if (run.kind === 'MERCARI') {
-        const targets = await context.env.DISPLAY_DB.prepare(
-          `SELECT
-             CAST(crawl_targets.target_id AS INTEGER) AS search_condition_id,
-             cards.name AS card_name,
-             price_series.normalized_additional_keyword AS additional_keyword,
-             search_conditions.normalized_exclude_keyword AS exclude_keyword
-           FROM crawl_targets
-           INNER JOIN search_conditions
-             ON search_conditions.id = CAST(crawl_targets.target_id AS INTEGER)
-           INNER JOIN price_series
-             ON price_series.id = search_conditions.price_series_id
-           INNER JOIN cards ON cards.id = price_series.card_id
-           WHERE crawl_targets.crawl_run_id = ?
-             AND crawl_targets.status != 'SUCCEEDED'
-           ORDER BY search_conditions.id`,
-        )
-          .bind(crawlRunId)
-          .all<{
-            search_condition_id: number;
-            card_name: string;
-            additional_keyword: string;
-            exclude_keyword: string;
-          }>();
+        const targets = await createDisplayDatabase(context.env.DISPLAY_DB)
+          .select({
+            searchConditionId: searchConditions.id,
+            cardName: cards.name,
+            additionalKeyword: priceSeries.normalizedAdditionalKeyword,
+            excludeKeyword: searchConditions.normalizedExcludeKeyword,
+          })
+          .from(crawlTargets)
+          .innerJoin(
+            searchConditions,
+            sql`${searchConditions.id} = CAST(${crawlTargets.targetId} AS INTEGER)`,
+          )
+          .innerJoin(
+            priceSeries,
+            eq(priceSeries.id, searchConditions.priceSeriesId),
+          )
+          .innerJoin(cards, eq(cards.id, priceSeries.cardId))
+          .where(
+            and(
+              eq(crawlTargets.crawlRunId, crawlRunId),
+              ne(crawlTargets.status, 'SUCCEEDED'),
+            ),
+          )
+          .orderBy(searchConditions.id);
         return context.json({
           kind: run.kind,
-          targets: targets.results.map((target) => ({
-            searchConditionId: String(target.search_condition_id),
-            cardName: target.card_name,
-            additionalKeyword: target.additional_keyword,
-            excludeKeyword: target.exclude_keyword,
+          targets: targets.map((target) => ({
+            searchConditionId: String(target.searchConditionId),
+            cardName: target.cardName,
+            additionalKeyword: target.additionalKeyword,
+            excludeKeyword: target.excludeKeyword,
           })),
         });
       }

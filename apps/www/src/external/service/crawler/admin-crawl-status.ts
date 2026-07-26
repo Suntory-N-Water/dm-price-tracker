@@ -1,3 +1,21 @@
+import {
+  crawlRuns,
+  crawlTargets,
+  createDisplayDatabase,
+  pendingCards,
+  products,
+} from '@dm-price-tracker/display-db';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  sql,
+} from 'drizzle-orm';
+
 export type CrawlStatus =
   | 'RUNNING'
   | 'COMPLETED'
@@ -21,139 +39,138 @@ export async function findAdminCrawlerStatus(database: D1Database): Promise<{
   mercariCrawl: CrawlSummary | null;
   officialProductsCrawl: CrawlSummary | null;
 }> {
-  const products = await database
-    .prepare(
-      `WITH latest_runs AS (
-         SELECT
-           id,
-           kind,
-           product_code,
-           status,
-           updated_at,
-           ROW_NUMBER() OVER (
-             PARTITION BY kind, product_code
-             ORDER BY created_at DESC
-           ) AS position
-         FROM crawl_runs
-         WHERE kind IN ('OFFICIAL_CARD_IDS', 'OFFICIAL_CARD_DETAILS')
-       )
-       SELECT
-         products.code,
-         products.name,
-         card_ids.status AS card_id_status,
-         card_ids.updated_at AS card_id_updated_at,
-         (
-           SELECT error
-           FROM crawl_targets
-           WHERE crawl_run_id = card_ids.id AND error IS NOT NULL
-           ORDER BY updated_at DESC
-           LIMIT 1
-         ) AS card_id_error,
-         card_details.status AS card_details_status,
-         card_details.updated_at AS card_details_updated_at,
-         (
-           SELECT error
-           FROM crawl_targets
-           WHERE crawl_run_id = card_details.id AND error IS NOT NULL
-           ORDER BY updated_at DESC
-           LIMIT 1
-         ) AS card_details_error,
-         (
-           SELECT COUNT(*)
-           FROM pending_cards
-           WHERE product_id = products.code
-         ) AS pending_card_count
-       FROM products
-       INNER JOIN latest_runs AS card_ids
-         ON card_ids.product_code = products.code
-        AND card_ids.kind = 'OFFICIAL_CARD_IDS'
-        AND card_ids.position = 1
-       LEFT JOIN latest_runs AS card_details
-         ON card_details.product_code = products.code
-        AND card_details.kind = 'OFFICIAL_CARD_DETAILS'
-        AND card_details.position = 1
-       ORDER BY products.display_order, products.code`,
+  const db = createDisplayDatabase(database);
+  const rankedRuns = db
+    .select({
+      id: crawlRuns.id,
+      kind: crawlRuns.kind,
+      productCode: crawlRuns.productCode,
+      status: crawlRuns.status,
+      updatedAt: crawlRuns.updatedAt,
+      position: sql<number>`ROW_NUMBER() OVER (
+          PARTITION BY ${crawlRuns.kind}, ${crawlRuns.productCode}
+          ORDER BY ${crawlRuns.createdAt} DESC
+        )`.as('position'),
+    })
+    .from(crawlRuns)
+    .where(
+      inArray(crawlRuns.kind, [
+        'MERCARI',
+        'OFFICIAL_PRODUCTS',
+        'OFFICIAL_CARD_IDS',
+        'OFFICIAL_CARD_DETAILS',
+      ]),
     )
-    .all<{
-      code: string;
-      name: string;
-      card_id_status: CrawlStatus;
-      card_id_updated_at: string;
-      card_id_error: string | null;
-      card_details_status: CrawlStatus | null;
-      card_details_updated_at: string | null;
-      card_details_error: string | null;
-      pending_card_count: number;
-    }>();
-  const globalRuns = await database
-    .prepare(
-      `SELECT
-         kind,
-         status,
-         updated_at,
-         (
-           SELECT error
-           FROM crawl_targets
-           WHERE crawl_run_id = crawl_runs.id AND error IS NOT NULL
-           ORDER BY updated_at DESC
-           LIMIT 1
-         ) AS error
-       FROM crawl_runs
-       WHERE kind IN ('MERCARI', 'OFFICIAL_PRODUCTS')
-         AND id = (
-           SELECT latest.id
-           FROM crawl_runs AS latest
-           WHERE latest.kind = crawl_runs.kind
-           ORDER BY latest.created_at DESC
-           LIMIT 1
-         )`,
-    )
-    .all<{
-      kind: 'MERCARI' | 'OFFICIAL_PRODUCTS';
-      status: CrawlStatus;
-      updated_at: string;
-      error: string | null;
-    }>();
-  const mercari = globalRuns.results.find(({ kind }) => kind === 'MERCARI');
-  const officialProducts = globalRuns.results.find(
+    .as('ranked_runs');
+  const [latestRuns, productRows] = await Promise.all([
+    db.select().from(rankedRuns).where(eq(rankedRuns.position, 1)),
+    db
+      .select({
+        code: products.code,
+        name: products.name,
+        pendingCardCount: count(pendingCards.id),
+      })
+      .from(products)
+      .leftJoin(pendingCards, eq(pendingCards.productId, products.code))
+      .groupBy(products.code, products.name, products.displayOrder)
+      .orderBy(asc(products.displayOrder), asc(products.code)),
+  ]);
+
+  const latestRunIds = latestRuns.map(({ id }) => id);
+  const targetErrors =
+    latestRunIds.length === 0
+      ? []
+      : await db
+          .select({
+            crawlRunId: crawlTargets.crawlRunId,
+            error: crawlTargets.error,
+          })
+          .from(crawlTargets)
+          .where(
+            and(
+              inArray(crawlTargets.crawlRunId, latestRunIds),
+              isNotNull(crawlTargets.error),
+            ),
+          )
+          .orderBy(desc(crawlTargets.updatedAt));
+  const errorByRunId = new Map<string, string>();
+  for (const target of targetErrors) {
+    if (target.error !== null && !errorByRunId.has(target.crawlRunId)) {
+      errorByRunId.set(target.crawlRunId, target.error);
+    }
+  }
+
+  const cardIdRunByProduct = new Map<string, (typeof latestRuns)[number]>();
+  const cardDetailsRunByProduct = new Map<
+    string,
+    (typeof latestRuns)[number]
+  >();
+  for (const run of latestRuns) {
+    if (run.productCode === null) {
+      continue;
+    }
+    if (run.kind === 'OFFICIAL_CARD_IDS') {
+      cardIdRunByProduct.set(run.productCode, run);
+    } else if (run.kind === 'OFFICIAL_CARD_DETAILS') {
+      cardDetailsRunByProduct.set(run.productCode, run);
+    }
+  }
+
+  const productStatuses: {
+    code: string;
+    name: string;
+    cardIdCrawl: CrawlSummary;
+    cardDetailsCrawl: CrawlSummary | null;
+    pendingCardCount: number;
+  }[] = [];
+  for (const product of productRows) {
+    const cardIdRun = cardIdRunByProduct.get(product.code);
+    if (cardIdRun === undefined) {
+      continue;
+    }
+    const cardDetailsRun = cardDetailsRunByProduct.get(product.code);
+    productStatuses.push({
+      code: product.code,
+      name: product.name,
+      cardIdCrawl: {
+        status: cardIdRun.status as CrawlStatus,
+        updatedAt: cardIdRun.updatedAt,
+        error: errorByRunId.get(cardIdRun.id) ?? null,
+      },
+      cardDetailsCrawl:
+        cardDetailsRun === undefined
+          ? null
+          : {
+              status: cardDetailsRun.status as CrawlStatus,
+              updatedAt: cardDetailsRun.updatedAt,
+              error: errorByRunId.get(cardDetailsRun.id) ?? null,
+            },
+      pendingCardCount: product.pendingCardCount,
+    });
+  }
+
+  const mercari = latestRuns.find(({ kind }) => kind === 'MERCARI');
+  const officialProducts = latestRuns.find(
     ({ kind }) => kind === 'OFFICIAL_PRODUCTS',
   );
 
   return {
-    products: products.results.map((product) => ({
-      code: product.code,
-      name: product.name,
-      cardIdCrawl: {
-        status: product.card_id_status,
-        updatedAt: product.card_id_updated_at,
-        error: product.card_id_error,
-      },
-      cardDetailsCrawl:
-        product.card_details_status === null ||
-        product.card_details_updated_at === null
-          ? null
-          : {
-              status: product.card_details_status,
-              updatedAt: product.card_details_updated_at,
-              error: product.card_details_error,
-            },
-      pendingCardCount: product.pending_card_count,
-    })),
+    products: productStatuses,
     mercariCrawl:
       mercari === undefined
         ? null
         : {
-            status: mercari.status,
-            updatedAt: mercari.updated_at,
-            error: mercari.error,
+            status: mercari.status as CrawlStatus,
+            updatedAt: mercari.updatedAt,
+            error: errorByRunId.get(mercari.id) ?? null,
           },
     officialProductsCrawl:
       officialProducts === undefined
         ? null
         : {
-            status: officialProducts.status,
-            updatedAt: officialProducts.updated_at,
-            error: officialProducts.error,
+            status: officialProducts.status as CrawlStatus,
+            updatedAt: officialProducts.updatedAt,
+            error: errorByRunId.get(officialProducts.id) ?? null,
           },
   };
 }
