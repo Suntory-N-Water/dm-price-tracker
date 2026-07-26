@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
-import { Ban, CheckCircle2, Eye, Pencil, Search, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Ban, Eye, Pencil, Search, Trash2 } from 'lucide-react';
+import { lazy, Suspense, useDeferredValue, useMemo, useState } from 'react';
 import type {
   BulkExcludeResponse,
   CardWatch,
@@ -9,16 +9,19 @@ import type {
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
 import { Card } from '@/shared/components/ui/card';
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/shared/components/ui/dialog';
 import { Input } from '@/shared/components/ui/input';
+
+// ダイアログは操作するまで描画されないため、一覧の初期チャンクから切り離す
+const WatchSettingsDialog = lazy(async () => ({
+  default: (await import('./WatchSettingsDialog')).WatchSettingsDialog,
+}));
+const BulkExcludeDialog = lazy(async () => ({
+  default: (await import('./BulkExcludeDialog')).BulkExcludeDialog,
+}));
+
+const pencilIcon = <Pencil className='size-3.5' />;
+const trashIcon = <Trash2 className='size-3.5' />;
+const eyeIcon = <Eye className='size-3.5' />;
 
 type Props = {
   watches: CardWatch[];
@@ -51,21 +54,18 @@ export function WatchListPresenter({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editing, setEditing] = useState<CardWatch | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [bulkWord, setBulkWord] = useState('');
-  const [bulkResult, setBulkResult] = useState<{
-    updated: { cardId: string }[];
-    skipped: { cardId: string; reason: string }[];
-  } | null>(null);
-  const [error, setError] = useState('');
 
+  // 一覧は全件描画するため、絞り込みより入力の反映を優先させる
+  const deferredName = useDeferredValue(name);
   const filteredWatches = useMemo(() => {
-    const normalizedName = name.trim().toLocaleLowerCase('ja');
+    const normalizedName = deferredName.trim().toLocaleLowerCase('ja');
     return watches.filter(
       (watch) =>
         watch.card.name.toLocaleLowerCase('ja').includes(normalizedName) &&
         (productCode === '' || watch.card.product.code === productCode),
     );
-  }, [name, productCode, watches]);
+  }, [deferredName, productCode, watches]);
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
   return (
     <div className='space-y-6'>
@@ -109,11 +109,9 @@ export function WatchListPresenter({
           </span>
           <Button
             size='sm'
-            onClick={() => {
-              setBulkWord('');
-              setBulkResult(null);
-              setBulkOpen(true);
-            }}
+            onPointerEnter={() => void import('./BulkExcludeDialog')}
+            onFocus={() => void import('./BulkExcludeDialog')}
+            onClick={() => setBulkOpen(true)}
           >
             <Ban className='size-4' />
             選択したカードに除外ワードを追加
@@ -147,7 +145,7 @@ export function WatchListPresenter({
                 type='checkbox'
                 className='size-4 accent-emerald-700'
                 aria-label={`${watch.card.name}を選択`}
-                checked={selectedIds.includes(watch.card.id)}
+                checked={selectedIdSet.has(watch.card.id)}
                 onChange={(event) =>
                   setSelectedIds((current) =>
                     event.target.checked
@@ -192,9 +190,11 @@ export function WatchListPresenter({
                 <Button
                   variant='outline'
                   size='sm'
+                  onPointerEnter={() => void import('./WatchSettingsDialog')}
+                  onFocus={() => void import('./WatchSettingsDialog')}
                   onClick={() => setEditing(watch)}
                 >
-                  <Pencil className='size-3.5' />
+                  {pencilIcon}
                   編集
                 </Button>
                 <Button
@@ -211,7 +211,7 @@ export function WatchListPresenter({
                     );
                   }}
                 >
-                  <Trash2 className='size-3.5' />
+                  {trashIcon}
                   解除
                 </Button>
                 <Button asChild size='sm'>
@@ -219,7 +219,7 @@ export function WatchListPresenter({
                     to='/watches/$cardId'
                     params={{ cardId: watch.card.id }}
                   >
-                    <Eye className='size-3.5' />
+                    {eyeIcon}
                     価格を見る
                   </Link>
                 </Button>
@@ -229,252 +229,31 @@ export function WatchListPresenter({
         </div>
       )}
 
-      <Dialog open={editing !== null} onOpenChange={() => setEditing(null)}>
-        {editing !== null && (
+      {editing !== null && (
+        <Suspense fallback={null}>
           <WatchSettingsDialog
             watch={editing}
             isPending={isPending}
+            onClose={() => setEditing(null)}
             onSave={async (input) => {
-              setError('');
-              try {
-                await onUpdate?.(editing.card.id, input);
-                setEditing(null);
-              } catch (caught) {
-                setError(
-                  caught instanceof Error
-                    ? caught.message
-                    : '設定を変更できませんでした',
-                );
-              }
+              await onUpdate?.(editing.card.id, input);
             }}
-            error={error}
           />
-        )}
-      </Dialog>
-
-      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className='text-xl font-bold'>
-              選択したカードに除外ワードを追加
-            </DialogTitle>
-            <DialogDescription className='text-sm text-stone-600'>
-              空き枠がないカードは変更せず、結果を一覧でお知らせします。
-            </DialogDescription>
-          </DialogHeader>
-          <label
-            className='space-y-2 text-sm font-semibold'
-            htmlFor='bulk-exclude-keyword'
-          >
-            追加する除外ワード
-            <Input
-              id='bulk-exclude-keyword'
-              value={bulkWord}
-              onChange={(event) => setBulkWord(event.target.value)}
-              placeholder='例: サイン入り'
-              maxLength={50}
-            />
-          </label>
-          {bulkResult !== null && (
-            <div
-              className='mt-4 space-y-4 rounded-lg bg-stone-100 p-4 text-sm'
-              role='status'
-            >
-              <div>
-                <p className='flex items-center gap-2 font-semibold text-emerald-800'>
-                  <CheckCircle2 className='size-4' />
-                  追加できたカード: {bulkResult.updated.length}枚
-                </p>
-                <ul className='mt-2 space-y-1 pl-6 text-stone-700'>
-                  {bulkResult.updated.map(({ cardId }) => (
-                    <li key={cardId}>
-                      {watches.find((watch) => watch.card.id === cardId)?.card
-                        .name ?? cardId}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <p className='font-semibold text-stone-700'>
-                  スキップしたカード: {bulkResult.skipped.length}枚
-                </p>
-                <ul className='mt-2 space-y-2 pl-6 text-stone-600'>
-                  {bulkResult.skipped.map(({ cardId, reason }) => (
-                    <li key={cardId}>
-                      <span className='font-medium text-stone-800'>
-                        {watches.find((watch) => watch.card.id === cardId)?.card
-                          .name ?? cardId}
-                      </span>
-                      <span className='ml-2'>{reason}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
-          {error !== '' && (
-            <p className='mt-3 text-sm text-red-700' role='alert'>
-              {error}
-            </p>
-          )}
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant='outline'>閉じる</Button>
-            </DialogClose>
-            {bulkResult === null && (
-              <Button
-                disabled={bulkWord.trim() === '' || isPending}
-                onClick={async () => {
-                  setError('');
-                  try {
-                    const result = await onBulkExclude?.({
-                      cardIds: selectedIds,
-                      excludeKeyword: bulkWord,
-                    });
-                    if (result !== undefined) {
-                      setBulkResult(result);
-                      setSelectedIds([]);
-                    }
-                  } catch (caught) {
-                    setError(
-                      caught instanceof Error
-                        ? caught.message
-                        : '除外ワードを追加できませんでした',
-                    );
-                  }
-                }}
-              >
-                {selectedIds.length}枚に追加する
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-function WatchSettingsDialog({
-  watch,
-  isPending,
-  onSave,
-  error,
-}: {
-  watch: CardWatch;
-  isPending: boolean;
-  onSave: (input: {
-    additionalKeywords: string[];
-    cardExcludeKeywords: string[];
-  }) => Promise<void>;
-  error: string;
-}) {
-  const [additionalKeywords, setAdditionalKeywords] = useState([
-    ...watch.additionalKeywords,
-    ...Array.from({ length: 3 - watch.additionalKeywords.length }, () => ''),
-  ]);
-  const cardSlotCount = Math.max(0, 3 - watch.commonExcludeKeywords.length);
-  const [cardExcludeKeywords, setCardExcludeKeywords] = useState([
-    ...watch.cardExcludeKeywords.slice(0, cardSlotCount),
-    ...Array.from(
-      {
-        length: Math.max(0, cardSlotCount - watch.cardExcludeKeywords.length),
-      },
-      () => '',
-    ),
-  ]);
-
-  return (
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle className='pr-8 text-xl font-bold'>
-          {watch.card.name} の設定
-        </DialogTitle>
-        <DialogDescription className='text-sm text-stone-600'>
-          公式カード名は必ず検索に使用され、変更できません。
-        </DialogDescription>
-      </DialogHeader>
-      <div className='space-y-5'>
-        <label
-          className='block space-y-2 text-sm font-semibold'
-          htmlFor='official-card-name'
-        >
-          公式カード名
-          <Input id='official-card-name' value={watch.card.name} disabled />
-        </label>
-        <fieldset>
-          <legend className='font-semibold'>メルカリ検索の追加ワード</legend>
-          <p className='mb-3 text-sm text-stone-500'>
-            最大3単語。1枠に1単語を入力します。
-          </p>
-          <div className='grid gap-2 sm:grid-cols-3'>
-            {additionalKeywords.map((keyword, index) => (
-              <Input
-                key={`additional-${index.toString()}`}
-                aria-label={`追加ワード${index + 1}`}
-                value={keyword}
-                onChange={(event) =>
-                  setAdditionalKeywords((current) =>
-                    current.map((value, currentIndex) =>
-                      currentIndex === index ? event.target.value : value,
-                    ),
-                  )
-                }
-                placeholder='未設定'
-                maxLength={50}
-              />
-            ))}
-          </div>
-        </fieldset>
-        <fieldset>
-          <legend className='font-semibold'>除外ワード（3枠）</legend>
-          <p className='mb-3 text-sm text-stone-500'>
-            共通除外ワードが {watch.commonExcludeKeywords.length}
-            枠を使用しています。
-          </p>
-          <div className='grid gap-2 sm:grid-cols-3'>
-            {watch.commonExcludeKeywords.map((keyword, index) => (
-              <Input
-                key={keyword}
-                aria-label={`共通除外ワード${index + 1}`}
-                value={keyword}
-                disabled
-              />
-            ))}
-            {cardExcludeKeywords.map((keyword, index) => (
-              <Input
-                key={`exclude-${index.toString()}`}
-                aria-label={`カード別除外ワード${index + 1}`}
-                value={keyword}
-                onChange={(event) =>
-                  setCardExcludeKeywords((current) =>
-                    current.map((value, currentIndex) =>
-                      currentIndex === index ? event.target.value : value,
-                    ),
-                  )
-                }
-                placeholder='カード別'
-                maxLength={50}
-              />
-            ))}
-          </div>
-        </fieldset>
-      </div>
-      {error !== '' && (
-        <p className='mt-4 text-sm text-red-700' role='alert'>
-          {error}
-        </p>
+        </Suspense>
       )}
-      <DialogFooter>
-        <DialogClose asChild>
-          <Button variant='outline'>キャンセル</Button>
-        </DialogClose>
-        <Button
-          disabled={isPending}
-          onClick={() => onSave({ additionalKeywords, cardExcludeKeywords })}
-        >
-          変更する
-        </Button>
-      </DialogFooter>
-    </DialogContent>
+
+      {bulkOpen && (
+        <Suspense fallback={null}>
+          <BulkExcludeDialog
+            watches={watches}
+            selectedIds={selectedIds}
+            isPending={isPending}
+            onClose={() => setBulkOpen(false)}
+            onSubmit={onBulkExclude}
+            onExcluded={() => setSelectedIds([])}
+          />
+        </Suspense>
+      )}
+    </div>
   );
 }

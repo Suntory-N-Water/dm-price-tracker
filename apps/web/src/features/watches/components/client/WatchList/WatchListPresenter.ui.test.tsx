@@ -101,7 +101,7 @@ describe('価格チェック中一覧', () => {
       }),
     );
     await user.type(
-      screen.getByRole('textbox', { name: '追加する除外ワード' }),
+      await screen.findByRole('textbox', { name: '追加する除外ワード' }),
       'サイン入り',
     );
 
