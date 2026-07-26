@@ -112,7 +112,11 @@ describe('Cloudflare Access認証', () => {
     );
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ products: [] });
+    await expect(response.json()).resolves.toEqual({
+      products: [],
+      mercariCrawl: null,
+      officialProductsCrawl: null,
+    });
   });
 
   it('JWTの検証に失敗した時、認証エラーになり利用者が登録されないこと', async () => {
