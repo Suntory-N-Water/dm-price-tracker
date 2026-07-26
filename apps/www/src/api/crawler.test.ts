@@ -380,4 +380,154 @@ describe('クローラー専用API', () => {
     expect(response.status).toBe(200);
     expect(pending).toEqual({ total: 250, registered: 0 });
   });
+
+  describe('クロール実行の失敗記録', () => {
+    beforeEach(async () => {
+      await env.DISPLAY_DB.prepare(
+        `INSERT INTO crawl_runs
+          (id, kind, product_code, status, expires_at)
+         VALUES (?, 'OFFICIAL_CARD_IDS', '26ex2', 'RUNNING',
+                 '2026-07-23 13:00:00')`,
+      )
+        .bind(crawlRunId)
+        .run();
+    });
+
+    it('未完了対象が残っている時、すべて失敗として記録し実行を失敗で確定すること', async () => {
+      await env.DISPLAY_DB.prepare(
+        `INSERT INTO crawl_targets (crawl_run_id, target_id, status)
+         VALUES (?, '26ex2', 'PENDING'), (?, '26ex3', 'PENDING')`,
+      )
+        .bind(crawlRunId, crawlRunId)
+        .run();
+
+      const response = await crawlerRequest(`/runs/${crawlRunId}/failure`, {
+        method: 'POST',
+        body: JSON.stringify({ error: 'ワークフローが異常終了しました' }),
+      });
+
+      const run = await env.DISPLAY_DB.prepare(
+        'SELECT status FROM crawl_runs WHERE id = ?',
+      )
+        .bind(crawlRunId)
+        .first();
+      const targets = await env.DISPLAY_DB.prepare(
+        `SELECT target_id, status, error FROM crawl_targets
+         WHERE crawl_run_id = ? ORDER BY target_id`,
+      )
+        .bind(crawlRunId)
+        .all();
+      expect(await response.json()).toEqual({ accepted: true });
+      expect(run).toEqual({ status: 'FAILED' });
+      expect(targets.results).toEqual([
+        {
+          target_id: '26ex2',
+          status: 'FAILED',
+          error: 'ワークフローが異常終了しました',
+        },
+        {
+          target_id: '26ex3',
+          status: 'FAILED',
+          error: 'ワークフローが異常終了しました',
+        },
+      ]);
+    });
+
+    it('成功済みの対象が混在している時、未完了だけを失敗にして一部失敗で確定すること', async () => {
+      await env.DISPLAY_DB.prepare(
+        `INSERT INTO crawl_targets (crawl_run_id, target_id, status)
+         VALUES (?, '26ex2', 'SUCCEEDED'), (?, '26ex3', 'PENDING')`,
+      )
+        .bind(crawlRunId, crawlRunId)
+        .run();
+
+      const response = await crawlerRequest(`/runs/${crawlRunId}/failure`, {
+        method: 'POST',
+        body: JSON.stringify({ error: 'ワークフローが異常終了しました' }),
+      });
+
+      const run = await env.DISPLAY_DB.prepare(
+        'SELECT status FROM crawl_runs WHERE id = ?',
+      )
+        .bind(crawlRunId)
+        .first();
+      const targets = await env.DISPLAY_DB.prepare(
+        `SELECT target_id, status FROM crawl_targets
+         WHERE crawl_run_id = ? ORDER BY target_id`,
+      )
+        .bind(crawlRunId)
+        .all();
+      expect(response.status).toBe(200);
+      expect(run).toEqual({ status: 'PARTIALLY_FAILED' });
+      expect(targets.results).toEqual([
+        { target_id: '26ex2', status: 'SUCCEEDED' },
+        { target_id: '26ex3', status: 'FAILED' },
+      ]);
+    });
+
+    it('未完了対象がない時、実行の状態を変えないこと', async () => {
+      await env.DISPLAY_DB.batch([
+        env.DISPLAY_DB.prepare(
+          `UPDATE crawl_runs SET status = 'COMPLETED' WHERE id = ?`,
+        ).bind(crawlRunId),
+        env.DISPLAY_DB.prepare(
+          `INSERT INTO crawl_targets (crawl_run_id, target_id, status)
+           VALUES (?, '26ex2', 'SUCCEEDED')`,
+        ).bind(crawlRunId),
+      ]);
+
+      const response = await crawlerRequest(`/runs/${crawlRunId}/failure`, {
+        method: 'POST',
+        body: JSON.stringify({ error: 'ワークフローが異常終了しました' }),
+      });
+
+      const run = await env.DISPLAY_DB.prepare(
+        'SELECT status FROM crawl_runs WHERE id = ?',
+      )
+        .bind(crawlRunId)
+        .first();
+      const target = await env.DISPLAY_DB.prepare(
+        'SELECT status, error FROM crawl_targets WHERE crawl_run_id = ?',
+      )
+        .bind(crawlRunId)
+        .first();
+      expect(await response.json()).toEqual({ accepted: false });
+      expect(run).toEqual({ status: 'COMPLETED' });
+      expect(target).toEqual({ status: 'SUCCEEDED', error: null });
+    });
+
+    it('存在しない実行を指定した時、見つからないと応答すること', async () => {
+      const response = await crawlerRequest(
+        '/runs/22222222-2222-4222-8222-222222222222/failure',
+        {
+          method: 'POST',
+          body: JSON.stringify({ error: 'ワークフローが異常終了しました' }),
+        },
+      );
+
+      expect(response.status).toBe(404);
+    });
+
+    it('失敗理由が空の時、入力値が不正と応答すること', async () => {
+      await env.DISPLAY_DB.prepare(
+        `INSERT INTO crawl_targets (crawl_run_id, target_id, status)
+         VALUES (?, '26ex2', 'PENDING')`,
+      )
+        .bind(crawlRunId)
+        .run();
+
+      const response = await crawlerRequest(`/runs/${crawlRunId}/failure`, {
+        method: 'POST',
+        body: JSON.stringify({ error: '' }),
+      });
+
+      const target = await env.DISPLAY_DB.prepare(
+        'SELECT status FROM crawl_targets WHERE crawl_run_id = ?',
+      )
+        .bind(crawlRunId)
+        .first();
+      expect(response.status).toBe(400);
+      expect(target).toEqual({ status: 'PENDING' });
+    });
+  });
 });

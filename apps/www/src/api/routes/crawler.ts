@@ -11,6 +11,7 @@ import {
   products,
   searchConditions,
   screenshots,
+  type DisplayDatabase,
 } from '@dm-price-tracker/display-db';
 import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
@@ -66,6 +67,61 @@ const officialCardDetailsDataSchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty(), v.maxLength(200)),
   imageKey: v.pipe(v.string(), v.nonEmpty(), v.maxLength(500)),
 });
+
+const failureSchema = v.object({
+  error: v.pipe(v.string(), v.nonEmpty(), v.maxLength(4000)),
+});
+
+function buildCrawlRunStatusUpdate(
+  db: DisplayDatabase,
+  crawlRunId: string,
+): BatchItem<'sqlite'> {
+  return db
+    .update(crawlRuns)
+    .set({
+      status: sql`CASE
+        WHEN (
+          SELECT COUNT(*)
+          FROM crawl_targets
+          WHERE crawl_run_id = ${crawlRunId}
+            AND status = 'PENDING'
+        ) = 0
+        THEN CASE
+          WHEN (
+            SELECT COUNT(*)
+            FROM crawl_targets
+            WHERE crawl_run_id = ${crawlRunId}
+              AND status = 'FAILED'
+          ) = 0
+          THEN 'COMPLETED'
+          WHEN (
+            SELECT COUNT(*)
+            FROM crawl_targets
+            WHERE crawl_run_id = ${crawlRunId}
+              AND status = 'FAILED'
+          ) = (
+            SELECT COUNT(*)
+            FROM crawl_targets
+            WHERE crawl_run_id = ${crawlRunId}
+          )
+          THEN 'FAILED'
+          ELSE 'PARTIALLY_FAILED'
+        END
+        ELSE ${crawlRuns.status}
+      END`,
+      updatedAt: sql`CASE
+        WHEN (
+          SELECT COUNT(*)
+          FROM crawl_targets
+          WHERE crawl_run_id = ${crawlRunId}
+            AND status = 'PENDING'
+        ) = 0
+        THEN CURRENT_TIMESTAMP
+        ELSE ${crawlRuns.updatedAt}
+      END`,
+    })
+    .where(eq(crawlRuns.id, crawlRunId));
+}
 
 const crawlerBodyLimit = bodyLimit({
   maxSize: 1024 * 1024,
@@ -362,55 +418,71 @@ export const crawlerRoutes = new Hono<ApiEnv>()
               eq(crawlTargets.targetId, result.targetId),
             ),
           ),
-        db
-          .update(crawlRuns)
-          .set({
-            status: sql`CASE
-              WHEN (
-                SELECT COUNT(*)
-                FROM crawl_targets
-                WHERE crawl_run_id = ${crawlRunId}
-                  AND status = 'PENDING'
-              ) = 0
-              THEN CASE
-                WHEN (
-                  SELECT COUNT(*)
-                  FROM crawl_targets
-                  WHERE crawl_run_id = ${crawlRunId}
-                    AND status = 'FAILED'
-                ) = 0
-                THEN 'COMPLETED'
-                WHEN (
-                  SELECT COUNT(*)
-                  FROM crawl_targets
-                  WHERE crawl_run_id = ${crawlRunId}
-                    AND status = 'FAILED'
-                ) = (
-                  SELECT COUNT(*)
-                  FROM crawl_targets
-                  WHERE crawl_run_id = ${crawlRunId}
-                )
-                THEN 'FAILED'
-                ELSE 'PARTIALLY_FAILED'
-              END
-              ELSE ${crawlRuns.status}
-            END`,
-            updatedAt: sql`CASE
-              WHEN (
-                SELECT COUNT(*)
-                FROM crawl_targets
-                WHERE crawl_run_id = ${crawlRunId}
-                  AND status = 'PENDING'
-              ) = 0
-              THEN CURRENT_TIMESTAMP
-              ELSE ${crawlRuns.updatedAt}
-            END`,
-          })
-          .where(eq(crawlRuns.id, crawlRunId)),
+        buildCrawlRunStatusUpdate(db, crawlRunId),
       );
       await db.batch(
         statements as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]],
       );
+
+      return context.json({ accepted: true });
+    },
+  )
+  // ワークフローが結果送信前に異常終了すると対象がPENDINGのまま残り、実行が期限切れまでRUNNINGで固まる
+  .post(
+    '/runs/:crawlRunId/failure',
+    sValidator('param', crawlRunParamsSchema, (result, context) => {
+      if (!result.success) {
+        return context.json({ error: '入力値が不正です' }, 400);
+      }
+    }),
+    sValidator('json', failureSchema, (result, context) => {
+      if (!result.success) {
+        return context.json({ error: '入力値が不正です' }, 400);
+      }
+    }),
+    async (context) => {
+      const { crawlRunId } = context.req.valid('param');
+      const { error } = context.req.valid('json');
+      const db = createDisplayDatabase(context.env.DISPLAY_DB);
+      const [run] = await db
+        .select({ id: crawlRuns.id })
+        .from(crawlRuns)
+        .where(eq(crawlRuns.id, crawlRunId))
+        .limit(1);
+      if (run === undefined) {
+        return context.json({ error: 'クロール実行が見つかりません' }, 404);
+      }
+
+      const pendingTargets = await db
+        .select({ targetId: crawlTargets.targetId })
+        .from(crawlTargets)
+        .where(
+          and(
+            eq(crawlTargets.crawlRunId, crawlRunId),
+            eq(crawlTargets.status, 'PENDING'),
+          ),
+        )
+        .limit(1);
+      if (pendingTargets.length === 0) {
+        return context.json({ accepted: false });
+      }
+
+      await db.batch([
+        db
+          .update(crawlTargets)
+          .set({
+            status: 'FAILED',
+            error,
+            updatedAt: sql`CURRENT_TIMESTAMP`,
+          })
+          .where(
+            and(
+              eq(crawlTargets.crawlRunId, crawlRunId),
+              eq(crawlTargets.status, 'PENDING'),
+            ),
+          ),
+        buildCrawlRunStatusUpdate(db, crawlRunId),
+      ]);
 
       return context.json({ accepted: true });
     },

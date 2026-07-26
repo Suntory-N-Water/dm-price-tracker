@@ -29,3 +29,21 @@ jobs:
           CRAWLER_API_KEY: ${{ secrets.CRAWLER_API_KEY }}
           CRAWL_RUN_ID: ${{ github.event.client_payload.crawlRunId }}
         run: pnpm --filter crawler run crawl:official-products
+
+  finalize:
+    name: 未完了対象を失敗として記録
+    needs: crawl
+    if: always()
+    timeout-minutes: 5
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/crawl-finalize
+        with:
+          api-base-url: ${{ vars.CRAWLER_API_BASE_URL }}
+          api-key: ${{ secrets.CRAWLER_API_KEY }}
+          crawl-run-id: ${{ github.event.client_payload.crawlRunId }}
