@@ -1,5 +1,6 @@
 import { sValidator } from '@hono/standard-validator';
 import {
+  bindParameterLimit,
   cards,
   crawlRuns,
   crawlTargets,
@@ -280,15 +281,27 @@ export const crawlerRoutes = new Hono<ApiEnv>()
             return context.json({ error: '入力値が不正です' }, 400);
           }
           const data = parsedData.output;
-          const registeredCards =
-            data.cardIds.length === 0
-              ? []
-              : await db
-                  .select({ id: cards.id })
-                  .from(cards)
-                  .where(inArray(cards.id, data.cardIds));
-          const registeredIds = new Set(registeredCards.map(({ id }) => id));
-          const pendingCardValues = [...new Set(data.cardIds)]
+          const uniqueCardIds = [...new Set(data.cardIds)];
+          const registeredIds = new Set<string>();
+          for (
+            let offset = 0;
+            offset < uniqueCardIds.length;
+            offset += bindParameterLimit
+          ) {
+            const registeredCards = await db
+              .select({ id: cards.id })
+              .from(cards)
+              .where(
+                inArray(
+                  cards.id,
+                  uniqueCardIds.slice(offset, offset + bindParameterLimit),
+                ),
+              );
+            for (const { id } of registeredCards) {
+              registeredIds.add(id);
+            }
+          }
+          const pendingCardValues = uniqueCardIds
             .filter((id) => !registeredIds.has(id))
             .map((id) => ({
               id,

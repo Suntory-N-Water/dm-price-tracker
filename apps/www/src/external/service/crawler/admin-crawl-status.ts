@@ -1,4 +1,5 @@
 import {
+  bindParameterLimit,
   crawlRuns,
   crawlTargets,
   createDisplayDatabase,
@@ -77,26 +78,32 @@ export async function findAdminCrawlerStatus(database: D1Database): Promise<{
   ]);
 
   const latestRunIds = latestRuns.map(({ id }) => id);
-  const targetErrors =
-    latestRunIds.length === 0
-      ? []
-      : await db
-          .select({
-            crawlRunId: crawlTargets.crawlRunId,
-            error: crawlTargets.error,
-          })
-          .from(crawlTargets)
-          .where(
-            and(
-              inArray(crawlTargets.crawlRunId, latestRunIds),
-              isNotNull(crawlTargets.error),
-            ),
-          )
-          .orderBy(desc(crawlTargets.updatedAt));
   const errorByRunId = new Map<string, string>();
-  for (const target of targetErrors) {
-    if (target.error !== null && !errorByRunId.has(target.crawlRunId)) {
-      errorByRunId.set(target.crawlRunId, target.error);
+  for (
+    let offset = 0;
+    offset < latestRunIds.length;
+    offset += bindParameterLimit
+  ) {
+    const targetErrors = await db
+      .select({
+        crawlRunId: crawlTargets.crawlRunId,
+        error: crawlTargets.error,
+      })
+      .from(crawlTargets)
+      .where(
+        and(
+          inArray(
+            crawlTargets.crawlRunId,
+            latestRunIds.slice(offset, offset + bindParameterLimit),
+          ),
+          isNotNull(crawlTargets.error),
+        ),
+      )
+      .orderBy(desc(crawlTargets.updatedAt));
+    for (const target of targetErrors) {
+      if (target.error !== null && !errorByRunId.has(target.crawlRunId)) {
+        errorByRunId.set(target.crawlRunId, target.error);
+      }
     }
   }
 

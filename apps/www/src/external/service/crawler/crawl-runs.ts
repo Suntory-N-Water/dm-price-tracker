@@ -1,4 +1,5 @@
 import {
+  bindParameterLimit,
   cardWatches,
   cards,
   crawlRuns,
@@ -103,6 +104,12 @@ async function createCrawlRun(
   }
 
   const id = crypto.randomUUID();
+  const targetValues = fixedTargetIds.map((targetId) => ({
+    crawlRunId: id,
+    targetId,
+    status: 'PENDING',
+  }));
+  const targetsPerStatement = Math.floor(bindParameterLimit / 3);
   const statements: BatchItem<'sqlite'>[] = [
     db.insert(crawlRuns).values({
       id,
@@ -115,14 +122,18 @@ async function createCrawlRun(
         .replace('T', ' ')
         .replace(/\.\d{3}Z$/u, ''),
     }),
-    db.insert(crawlTargets).values(
-      fixedTargetIds.map((targetId) => ({
-        crawlRunId: id,
-        targetId,
-        status: 'PENDING',
-      })),
-    ),
   ];
+  for (
+    let offset = 0;
+    offset < targetValues.length;
+    offset += targetsPerStatement
+  ) {
+    statements.push(
+      db
+        .insert(crawlTargets)
+        .values(targetValues.slice(offset, offset + targetsPerStatement)),
+    );
+  }
   await db.batch(statements as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]]);
   await dispatchCrawlerWorkflow({
     repository: env.GITHUB_REPOSITORY,

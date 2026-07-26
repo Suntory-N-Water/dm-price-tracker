@@ -343,4 +343,41 @@ describe('クローラー専用API', () => {
     expect(failureResponse.status).toBe(200);
     expect(run).toEqual({ status: 'PARTIALLY_FAILED' });
   });
+
+  it('カードIDが分割単位を超える時、登録済みを除外して残りすべてを未完了カードへ追加すること', async () => {
+    await env.DISPLAY_DB.batch([
+      env.DISPLAY_DB.prepare(
+        `INSERT INTO crawl_runs
+          (id, kind, product_code, status, expires_at)
+         VALUES (?, 'OFFICIAL_CARD_IDS', '26ex2', 'RUNNING',
+                 '2026-07-23 13:00:00')`,
+      ).bind(crawlRunId),
+      env.DISPLAY_DB.prepare(
+        `INSERT INTO crawl_targets (crawl_run_id, target_id, status)
+         VALUES (?, '26ex2', 'PENDING')`,
+      ).bind(crawlRunId),
+    ]);
+
+    const response = await crawlerRequest(`/runs/${crawlRunId}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        targetId: '26ex2',
+        success: true,
+        data: {
+          cardIds: [
+            'card-1',
+            ...Array.from({ length: 250 }, (_, index) => `bulk-${index}`),
+          ],
+        },
+      }),
+    });
+    const pending = await env.DISPLAY_DB.prepare(
+      `SELECT COUNT(*) AS total,
+              SUM(CASE WHEN id = 'card-1' THEN 1 ELSE 0 END) AS registered
+       FROM pending_cards`,
+    ).first();
+
+    expect(response.status).toBe(200);
+    expect(pending).toEqual({ total: 250, registered: 0 });
+  });
 });

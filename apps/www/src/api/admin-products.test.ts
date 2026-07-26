@@ -244,6 +244,43 @@ describe('管理API', () => {
     expect(targets.results).toEqual([{ target_id: 'card-1' }]);
   });
 
+  it('クロール対象が分割単位を超える時、対象をすべて登録すること', async () => {
+    const sut = createApp({
+      verifyAccessToken: async () => 'admin@example.com',
+    });
+    const pendingCardIds = Array.from(
+      { length: 250 },
+      (_, index) => `bulk-${index}`,
+    );
+    await env.DISPLAY_DB.prepare(
+      `INSERT INTO pending_cards (id, product_id)
+       SELECT value, '26ex2' FROM json_each(?)`,
+    )
+      .bind(JSON.stringify(pendingCardIds))
+      .run();
+
+    const response = await sut.request(
+      '/api/admin/products/26ex2/card-details',
+      {
+        method: 'POST',
+        headers: { 'cf-access-jwt-assertion': 'valid-token' },
+      },
+      createBindings(),
+    );
+    const body = await response.json<{ id: string }>();
+    const targets = await env.DISPLAY_DB.prepare(
+      `SELECT COUNT(*) AS total,
+              SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END) AS pending
+       FROM crawl_targets
+       WHERE crawl_run_id = ?`,
+    )
+      .bind(body.id)
+      .first();
+
+    expect(response.status).toBe(202);
+    expect(targets).toEqual({ total: 250, pending: 250 });
+  });
+
   it('管理者以外の時、管理APIを利用できないこと', async () => {
     const sut = createApp({
       verifyAccessToken: async () => 'friend@example.com',
