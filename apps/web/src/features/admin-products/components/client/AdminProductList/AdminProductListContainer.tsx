@@ -1,7 +1,7 @@
 import {
   useMutation,
   useQueryClient,
-  useSuspenseQuery,
+  useSuspenseQueries,
 } from '@tanstack/react-query';
 import {
   adminProductsQueryOptions,
@@ -15,8 +15,12 @@ import { AdminProductListPresenter } from './AdminProductListPresenter';
 
 export function AdminProductListContainer() {
   const queryClient = useQueryClient();
-  const products = useSuspenseQuery(adminProductsQueryOptions);
-  const available = useSuspenseQuery(availableAdminProductsQueryOptions(''));
+  const [products, available] = useSuspenseQueries({
+    queries: [
+      adminProductsQueryOptions,
+      availableAdminProductsQueryOptions(''),
+    ],
+  });
   const mutation = useMutation({
     mutationFn: async (operation: () => Promise<unknown>) => await operation(),
     onSuccess: async () => {

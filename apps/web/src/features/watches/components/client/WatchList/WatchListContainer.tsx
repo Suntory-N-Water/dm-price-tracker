@@ -1,7 +1,7 @@
 import {
   useMutation,
   useQueryClient,
-  useSuspenseQuery,
+  useSuspenseQueries,
 } from '@tanstack/react-query';
 import { cardProductsQueryOptions } from '@/features/cards/api';
 import {
@@ -18,8 +18,10 @@ const initialFilters = { name: '', productCode: '' };
 
 export function WatchListContainer() {
   const queryClient = useQueryClient();
-  const watches = useSuspenseQuery(watchesQueryOptions(initialFilters));
-  const products = useSuspenseQuery(cardProductsQueryOptions);
+  // useSuspenseQuery を並べると1本目のサスペンドで2本目が開始されず直列化する
+  const [watches, products] = useSuspenseQueries({
+    queries: [watchesQueryOptions(initialFilters), cardProductsQueryOptions],
+  });
   const mutation = useMutation({
     mutationFn: async (operation: () => Promise<unknown>) => await operation(),
     onSuccess: async () => {

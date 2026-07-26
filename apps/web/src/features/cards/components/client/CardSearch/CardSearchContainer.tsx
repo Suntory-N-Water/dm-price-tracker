@@ -1,7 +1,7 @@
 import {
   useMutation,
   useQueryClient,
-  useSuspenseQuery,
+  useSuspenseQueries,
 } from '@tanstack/react-query';
 import {
   cardsQueryOptions,
@@ -17,8 +17,9 @@ const initialFilters = { name: '', productCode: '' };
 
 export function CardSearchContainer() {
   const queryClient = useQueryClient();
-  const cards = useSuspenseQuery(cardsQueryOptions(initialFilters));
-  const products = useSuspenseQuery(cardProductsQueryOptions);
+  const [cards, products] = useSuspenseQueries({
+    queries: [cardsQueryOptions(initialFilters), cardProductsQueryOptions],
+  });
   const mutation = useMutation({
     mutationFn: async (card: Card) => {
       if (card.isWatching) {
