@@ -136,6 +136,43 @@ describe('管理API', () => {
     });
   });
 
+  it('開始済み商品が分割単位を超える時、未開始商品だけを返すこと', async () => {
+    const sut = createApp({
+      verifyAccessToken: async () => 'admin@example.com',
+    });
+    const startedProductCodes = Array.from(
+      { length: 120 },
+      (_, index) => `started-${index}`,
+    );
+    await env.DISPLAY_DB.batch([
+      env.DISPLAY_DB.prepare(
+        `INSERT INTO products (code, name, display_order)
+         SELECT value, '開始済み商品', 10 FROM json_each(?)`,
+      ).bind(JSON.stringify(startedProductCodes)),
+      env.DISPLAY_DB.prepare(
+        `INSERT INTO crawl_runs (id, kind, product_code, status, expires_at)
+         SELECT value, 'OFFICIAL_CARD_IDS', value, 'COMPLETED',
+                '2026-07-23 13:00:00'
+         FROM json_each(?)`,
+      ).bind(JSON.stringify(startedProductCodes)),
+    ]);
+
+    const response = await sut.request(
+      '/api/admin/products/available',
+      { headers: { 'cf-access-jwt-assertion': 'valid-token' } },
+      createBindings(),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      products: [
+        { code: '26ex2', name: 'カリスマBEST' },
+        { code: '26rp2', name: 'ドギラゴン逆の段' },
+        { code: '25ex4', name: 'パンドラ・ウォーズ' },
+      ],
+    });
+  });
+
   it('商品一覧を更新した時、新しい実行と固定対象を作成すること', async () => {
     const sut = createApp({
       verifyAccessToken: async () => 'admin@example.com',

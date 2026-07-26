@@ -314,11 +314,19 @@ export const crawlerRoutes = new Hono<ApiEnv>()
             return context.json({ error: '入力値が不正です' }, 400);
           }
           const data = parsedData.output;
-          for (let offset = 0; offset < data.products.length; offset += 20) {
+          // 1行あたりcode、name、displayOrderの3個を消費する
+          const productsPerStatement = Math.floor(bindParameterLimit / 3);
+          for (
+            let offset = 0;
+            offset < data.products.length;
+            offset += productsPerStatement
+          ) {
             statements.push(
               db
                 .insert(products)
-                .values(data.products.slice(offset, offset + 20))
+                .values(
+                  data.products.slice(offset, offset + productsPerStatement),
+                )
                 .onConflictDoUpdate({
                   target: products.code,
                   set: {
@@ -363,15 +371,22 @@ export const crawlerRoutes = new Hono<ApiEnv>()
               id,
               productId: target.productCode ?? result.targetId,
             }));
+          // 1行あたりidとproductIdの2個を消費する
+          const pendingCardsPerStatement = Math.floor(bindParameterLimit / 2);
           for (
             let offset = 0;
             offset < pendingCardValues.length;
-            offset += 50
+            offset += pendingCardsPerStatement
           ) {
             statements.push(
               db
                 .insert(pendingCards)
-                .values(pendingCardValues.slice(offset, offset + 50))
+                .values(
+                  pendingCardValues.slice(
+                    offset,
+                    offset + pendingCardsPerStatement,
+                  ),
+                )
                 .onConflictDoNothing(),
             );
           }

@@ -145,4 +145,68 @@ describe('除外ワード', () => {
       ],
     });
   });
+
+  it('一括追加の対象が分割単位を超える時、すべてのカードへ反映されること', async () => {
+    const sut = createApp({
+      verifyAccessToken: async () => 'friend@example.com',
+    });
+    const cardIds = Array.from(
+      { length: 100 },
+      (_, index) => `dm26ex2-bulk-${index}`,
+    );
+    await env.DISPLAY_DB.batch([
+      env.DISPLAY_DB.prepare(
+        `INSERT INTO users (email) VALUES ('friend@example.com')`,
+      ),
+      env.DISPLAY_DB.prepare(
+        `INSERT INTO cards (id, product_id, name, image_key)
+         SELECT value, '26ex2', 'カード', 'cards/bulk.png' FROM json_each(?)`,
+      ).bind(JSON.stringify(cardIds)),
+      env.DISPLAY_DB.prepare(
+        `INSERT INTO price_series (card_id) SELECT value FROM json_each(?)`,
+      ).bind(JSON.stringify(cardIds)),
+      env.DISPLAY_DB.prepare(
+        `INSERT INTO search_conditions (price_series_id)
+         SELECT id FROM price_series`,
+      ),
+      env.DISPLAY_DB.prepare(
+        `INSERT INTO card_watches (user_email, card_id, search_condition_id)
+         SELECT 'friend@example.com', price_series.card_id, search_conditions.id
+         FROM search_conditions
+         INNER JOIN price_series ON price_series.id = search_conditions.price_series_id`,
+      ),
+    ]);
+
+    const response = await sut.request(
+      '/api/card-watches/bulk-exclude-keyword',
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'cf-access-jwt-assertion': 'valid-token',
+        },
+        body: JSON.stringify({ cardIds, excludeKeyword: 'ジャンク' }),
+      },
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      updated: cardIds.map((cardId) => ({ cardId })),
+      skipped: [],
+    });
+    await expect(
+      env.DISPLAY_DB.prepare(
+        `SELECT COUNT(*) AS total
+         FROM card_watches
+         INNER JOIN search_conditions
+           ON search_conditions.id = card_watches.search_condition_id
+         WHERE card_watches.user_email = ?
+           AND card_watches.is_current = 1
+           AND search_conditions.normalized_exclude_keyword LIKE '%ジャンク%'`,
+      )
+        .bind('friend@example.com')
+        .first(),
+    ).resolves.toEqual({ total: 100 });
+  });
 });

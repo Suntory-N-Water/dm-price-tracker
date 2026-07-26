@@ -1,6 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import {
+  bindParameterLimit,
   cardWatches,
   createDisplayDatabase,
   searchConditions,
@@ -27,25 +28,38 @@ export async function addBulkCardExcludeKeyword({
   excludeKeyword,
 }: AddBulkCardExcludeKeywordInput): Promise<BulkExcludeKeywordResult> {
   const db = createDisplayDatabase(database);
-  const watches = await db
-    .select({
-      cardId: cardWatches.cardId,
-      priceSeriesId: searchConditions.priceSeriesId,
-      normalizedExcludeKeyword: searchConditions.normalizedExcludeKeyword,
-    })
-    .from(cardWatches)
-    .innerJoin(
-      searchConditions,
-      eq(searchConditions.id, cardWatches.searchConditionId),
-    )
-    .where(
-      and(
-        eq(cardWatches.userEmail, userEmail),
-        eq(cardWatches.isCurrent, 1),
-        inArray(cardWatches.cardId, [...cardIds]),
-      ),
-    );
-  const watchByCardId = new Map(watches.map((watch) => [watch.cardId, watch]));
+  const watchByCardId = new Map<
+    string,
+    { priceSeriesId: number; normalizedExcludeKeyword: string }
+  >();
+  // userEmailとisCurrentで2個消費するため、残りをカードIDへ割り当てる
+  const cardIdsPerStatement = bindParameterLimit - 2;
+  for (let offset = 0; offset < cardIds.length; offset += cardIdsPerStatement) {
+    const watches = await db
+      .select({
+        cardId: cardWatches.cardId,
+        priceSeriesId: searchConditions.priceSeriesId,
+        normalizedExcludeKeyword: searchConditions.normalizedExcludeKeyword,
+      })
+      .from(cardWatches)
+      .innerJoin(
+        searchConditions,
+        eq(searchConditions.id, cardWatches.searchConditionId),
+      )
+      .where(
+        and(
+          eq(cardWatches.userEmail, userEmail),
+          eq(cardWatches.isCurrent, 1),
+          inArray(
+            cardWatches.cardId,
+            cardIds.slice(offset, offset + cardIdsPerStatement),
+          ),
+        ),
+      );
+    for (const watch of watches) {
+      watchByCardId.set(watch.cardId, watch);
+    }
+  }
   const commonExcludeKeywords = await findCommonExcludeKeywords(
     database,
     userEmail,
