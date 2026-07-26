@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
-import { getCrawlRun, sendCrawlResult } from '../lib/crawler-api';
-import { retryTarget } from '../lib/retry';
+import { getCrawlRun } from '../lib/crawler-api';
+import { runCrawlerTarget } from '../lib/retry';
 import { fetchOfficialCardIdsPage } from './extract';
 
 async function main(): Promise<void> {
@@ -15,8 +15,10 @@ async function main(): Promise<void> {
   const browser = await chromium.launch();
 
   try {
-    try {
-      await retryTarget(async () => {
+    const succeeded = await runCrawlerTarget({
+      targetId: target.targetId,
+      label: `商品 ${target.targetId} のカードID収集`,
+      operation: async () => {
         const page = await browser.newPage();
         try {
           const response = await page.goto(
@@ -42,26 +44,13 @@ async function main(): Promise<void> {
               cardIds.add(cardId);
             }
           }
-          await sendCrawlResult({
-            targetId: target.targetId,
-            success: true,
-            data: { cardIds: [...cardIds] },
-          });
+          return { cardIds: [...cardIds] };
         } finally {
           await page.close();
         }
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '不明なエラー';
-      console.error(
-        `商品 ${target.targetId} のカードID収集に失敗しました`,
-        error,
-      );
-      await sendCrawlResult({
-        targetId: target.targetId,
-        success: false,
-        error: message,
-      });
+      },
+    });
+    if (!succeeded) {
       process.exitCode = 1;
     }
   } finally {

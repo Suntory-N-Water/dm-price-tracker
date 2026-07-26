@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
-import { getCrawlRun, sendCrawlResult } from '../lib/crawler-api';
-import { retryTarget } from '../lib/retry';
+import { getCrawlRun } from '../lib/crawler-api';
+import { runCrawlerTarget } from '../lib/retry';
 import { extractOfficialProducts } from './extract';
 
 async function main(): Promise<void> {
@@ -15,8 +15,10 @@ async function main(): Promise<void> {
   const browser = await chromium.launch();
 
   try {
-    try {
-      await retryTarget(async () => {
+    const succeeded = await runCrawlerTarget({
+      targetId: target.targetId,
+      label: '公式商品一覧',
+      operation: async () => {
         const page = await browser.newPage();
         try {
           const response = await page.goto(
@@ -28,23 +30,13 @@ async function main(): Promise<void> {
               `商品一覧の取得に失敗しました: ${response?.status() ?? '応答なし'}`,
             );
           }
-          await sendCrawlResult({
-            targetId: target.targetId,
-            success: true,
-            data: { products: await extractOfficialProducts(page) },
-          });
+          return { products: await extractOfficialProducts(page) };
         } finally {
           await page.close();
         }
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '不明なエラー';
-      console.error('公式商品一覧の取得に失敗しました', error);
-      await sendCrawlResult({
-        targetId: target.targetId,
-        success: false,
-        error: message,
-      });
+      },
+    });
+    if (!succeeded) {
       process.exitCode = 1;
     }
   } finally {

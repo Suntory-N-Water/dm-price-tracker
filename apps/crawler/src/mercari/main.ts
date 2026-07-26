@@ -1,11 +1,7 @@
 import { chromium } from 'playwright';
-import {
-  getCrawlRun,
-  readTargetIds,
-  sendCrawlResult,
-} from '../lib/crawler-api';
+import { getCrawlRun, readTargetIds } from '../lib/crawler-api';
 import { putR2Object, SCREENSHOTS_BUCKET } from '../lib/r2';
-import { retryTarget } from '../lib/retry';
+import { runCrawlerTarget } from '../lib/retry';
 import { extractMercariSearch } from './extract';
 
 async function main(): Promise<void> {
@@ -25,8 +21,10 @@ async function main(): Promise<void> {
 
   try {
     for (const target of targets) {
-      try {
-        await retryTarget(async () => {
+      const succeeded = await runCrawlerTarget({
+        targetId: target.searchConditionId,
+        label: `メルカリ検索条件 ${target.searchConditionId}`,
+        operation: async () => {
           const page = await browser.newPage();
           try {
             const result = await extractMercariSearch(page, target);
@@ -36,33 +34,20 @@ async function main(): Promise<void> {
               key: imageKey,
               body: result.screenshot,
             });
-            await sendCrawlResult({
-              targetId: target.searchConditionId,
-              success: true,
-              data: {
-                imageKey,
-                items: result.items.map(({ title, price }) => ({
-                  title,
-                  price,
-                })),
-              },
-            });
+            return {
+              imageKey,
+              items: result.items.map(({ title, price }) => ({
+                title,
+                price,
+              })),
+            };
           } finally {
             await page.close();
           }
-        });
+        },
+      });
+      if (succeeded) {
         succeededCount += 1;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : '不明なエラー';
-        console.error(
-          `メルカリ検索条件 ${target.searchConditionId} の取得に失敗しました`,
-          error,
-        );
-        await sendCrawlResult({
-          targetId: target.searchConditionId,
-          success: false,
-          error: message,
-        });
       }
     }
   } finally {

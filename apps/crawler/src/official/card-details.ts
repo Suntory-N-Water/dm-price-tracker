@@ -1,11 +1,7 @@
 import { chromium } from 'playwright';
-import {
-  getCrawlRun,
-  readTargetIds,
-  sendCrawlResult,
-} from '../lib/crawler-api';
+import { getCrawlRun, readTargetIds } from '../lib/crawler-api';
 import { CARD_IMAGES_BUCKET, putR2Object } from '../lib/r2';
-import { retryTarget } from '../lib/retry';
+import { runCrawlerTarget } from '../lib/retry';
 import { extractOfficialCardDetails } from './extract';
 
 async function main(): Promise<void> {
@@ -25,8 +21,10 @@ async function main(): Promise<void> {
 
   try {
     for (const target of targets) {
-      try {
-        await retryTarget(async () => {
+      const succeeded = await runCrawlerTarget({
+        targetId: target.cardId,
+        label: `カード ${target.cardId} の詳細`,
+        operation: async () => {
           const page = await browser.newPage({
             deviceScaleFactor: 2,
             viewport: { width: 1280, height: 960 },
@@ -42,31 +40,18 @@ async function main(): Promise<void> {
               key: imageKey,
               body: result.image,
             });
-            await sendCrawlResult({
-              targetId: target.cardId,
-              success: true,
-              data: {
-                cardId: target.cardId,
-                name: result.name,
-                imageKey,
-              },
-            });
+            return {
+              cardId: target.cardId,
+              name: result.name,
+              imageKey,
+            };
           } finally {
             await page.close();
           }
-        });
+        },
+      });
+      if (succeeded) {
         succeededCount += 1;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : '不明なエラー';
-        console.error(
-          `カード ${target.cardId} の詳細取得に失敗しました`,
-          error,
-        );
-        await sendCrawlResult({
-          targetId: target.cardId,
-          success: false,
-          error: message,
-        });
       }
     }
   } finally {
