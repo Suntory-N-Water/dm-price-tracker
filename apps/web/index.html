@@ -9,6 +9,12 @@
       content="デュエル・マスターズのカード価格を確認するアプリケーション"
     />
     <title>DM Price Tracker</title>
+    <!-- API は別オリジンで、最初の取得がバンドル実行後まで始まらないため接続だけ先に張る -->
+    <link
+      rel="preconnect"
+      href="%VITE_API_BASE_URL%"
+      crossorigin="use-credentials"
+    />
   </head>
   <body>
     <div id="app"></div>
