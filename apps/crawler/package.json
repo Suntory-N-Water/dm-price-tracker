@@ -1,0 +1,25 @@
+{
+  "name": "crawler",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "crawl:mercari": "tsx src/mercari/main.ts",
+    "crawl:official-products": "tsx src/official/products.ts",
+    "crawl:official-card-ids": "tsx src/official/card-ids.ts",
+    "crawl:official-card-details": "tsx src/official/card-details.ts",
+    "test": "vitest run",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1095.0",
+    "playwright": "1.62.0",
+    "valibot": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "^4.23.1",
+    "typescript": "catalog:",
+    "vitest": "^4.1.10"
+  }
+}
