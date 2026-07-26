@@ -24,12 +24,8 @@ jobs:
       contents: write
       issues: write
     env:
-      AGENT_BROWSER_ARGS: --lang=ja-JP
-      AGENT_BROWSER_USER_AGENT: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/146.0.0.0 Safari/537.36
-      LANG: ja_JP.UTF-8
       SCREENSHOT_PATH: /tmp/mercari-search.png
-      TARGET_URL: https://jp.mercari.com/search?keyword=%E3%83%87%E3%83%A5%E3%82%A8%E3%83%AB%E3%83%9E%E3%82%B9%E3%82%BF%E3%83%BC%E3%82%BA&sort=created_time&order=desc&category_id=1290
-      TZ: Asia/Tokyo
+      TARGET_URL: https://jp.mercari.com/search?keyword=%E4%B8%96%E7%95%8C%E7%AB%9C%E7%9A%87%20%E3%83%9C%E3%83%AB%E3%82%B7%E3%83%A3%E3%83%83%E3%82%AF%E3%83%BB%E3%83%92%E3%82%AB%E3%83%AA%E3%82%B9%E3%83%9E&sort=created_time&order=desc&category_id=1290
     steps:
       - name: agent-browserをインストール
         run: npm install --global agent-browser@0.33.0
@@ -43,10 +39,6 @@ jobs:
           set -euo pipefail
           trap 'agent-browser --session mercari-check close || true' EXIT
 
-          agent-browser --session mercari-check open about:blank
-          agent-browser --session mercari-check set geo 35.681236 139.767125
-          agent-browser --session mercari-check set headers \
-            '{"Accept-Language":"ja-JP,ja;q=0.9"}'
           agent-browser --session mercari-check open "$TARGET_URL"
           agent-browser --session mercari-check wait --load domcontentloaded
           agent-browser --session mercari-check wait 3000
@@ -56,14 +48,6 @@ jobs:
             agent-browser --session mercari-check snapshot -i
           )"
           printf '%s\n' "$snapshot"
-
-          if [[ "$snapshot" == *'combobox "国/地域を選択"'* ]]; then
-            agent-browser --session mercari-check select @e2 "jp"
-            agent-browser --session mercari-check \
-              find text "続ける" click --exact
-            agent-browser --session mercari-check wait --load domcontentloaded
-            agent-browser --session mercari-check wait 3000
-          fi
 
           current_url="$(agent-browser --session mercari-check get url)"
           case "$current_url" in
@@ -75,32 +59,43 @@ jobs:
           esac
 
           agent-browser --session mercari-check screenshot "$SCREENSHOT_PATH"
-          item_count="$(
-            agent-browser --session mercari-check get count \
-              'a[data-testid="thumbnail-link"][href^="/item/"]'
-          )"
+          # shellcheck disable=SC2016
+          agent-browser --session mercari-check eval \
+            'Array.from(document.querySelectorAll(`a[data-testid="thumbnail-link"][href^="/item/"]`)).map((anchor) => { const imageAlt = anchor.querySelector("img")?.getAttribute("alt") ?? ""; const yenMatch = imageAlt.match(/([0-9,]+)円/); return { url: anchor.href, title: anchor.querySelector(`[data-testid="thumbnail-item-name"]`)?.textContent?.trim() ?? "", visiblePrice: anchor.querySelector(".merPrice")?.textContent?.trim() ?? "", imageAlt, yenPrice: yenMatch === null ? null : Number(yenMatch[1].replaceAll(",", "")) }; })' \
+            >/tmp/items.json
+          jq . /tmp/items.json
+
+          item_count="$(jq 'length' /tmp/items.json)"
           if (( item_count == 0 )); then
             echo "検索結果の商品を取得できませんでした"
             exit 1
           fi
-          first_price="$(
-            agent-browser --session mercari-check get text '.merPrice'
+          yen_count="$(
+            jq '[.[] | select(.yenPrice != null)] | length' /tmp/items.json
           )"
-          first_price="${first_price//$'\n'/}"
-          echo "item_count=${item_count}" >> "$GITHUB_OUTPUT"
-          echo "first_price=${first_price}" >> "$GITHUB_OUTPUT"
-          if [[ "$first_price" == *"¥"* ]]; then
-            echo "is_jpy=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_jpy=false" >> "$GITHUB_OUTPUT"
-          fi
+          first_visible_price="$(jq -r '.[0].visiblePrice' /tmp/items.json)"
+          first_yen_price="$(jq -r '.[0].yenPrice' /tmp/items.json)"
+
+          {
+            echo "item_count=${item_count}"
+            echo "yen_count=${yen_count}"
+            echo "first_visible_price=${first_visible_price}"
+            echo "first_yen_price=${first_yen_price}"
+            if (( yen_count == item_count )); then
+              echo "all_items_have_yen=true"
+            else
+              echo "all_items_have_yen=false"
+            fi
+          } >> "$GITHUB_OUTPUT"
 
       - name: スクリーンショットをIssueへ掲載
         env:
           GH_TOKEN: ${{ github.token }}
-          FIRST_PRICE: ${{ steps.capture.outputs.first_price }}
+          FIRST_VISIBLE_PRICE: ${{ steps.capture.outputs.first_visible_price }}
+          FIRST_YEN_PRICE: ${{ steps.capture.outputs.first_yen_price }}
           ITEM_COUNT: ${{ steps.capture.outputs.item_count }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
+          YEN_COUNT: ${{ steps.capture.outputs.yen_count }}
         run: |
           set -euo pipefail
 
@@ -138,14 +133,12 @@ jobs:
           run_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           gh issue comment "$ISSUE_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
-            --body "$(printf 'GitHub-hosted runnerからメルカリへアクセスし、検索結果を%s件確認できました（先頭価格: %s）。\n\n![メルカリ検索ページ](%s)\n\n[Workflow run](%s)' "$ITEM_COUNT" "$FIRST_PRICE" "$image_url" "$run_url")"
+            --body "$(printf 'GitHub-hosted runnerの初期状態で検索結果を%s件取得し、%s件から日本円価格を取得できました（先頭: %s円、表示価格: %s）。\n\n![メルカリ検索ページ](%s)\n\n[Workflow run](%s)' "$ITEM_COUNT" "$YEN_COUNT" "$FIRST_YEN_PRICE" "$FIRST_VISIBLE_PRICE" "$image_url" "$run_url")"
 
-      - name: 日本向け価格表示を確認
-        if: steps.capture.outputs.is_jpy != 'true'
-        env:
-          FIRST_PRICE: ${{ steps.capture.outputs.first_price }}
+      - name: 日本円価格の取得結果を確認
+        if: steps.capture.outputs.all_items_have_yen != 'true'
         run: |
-          echo "日本円の価格を取得できませんでした: $FIRST_PRICE"
+          echo "一部商品から日本円価格を取得できませんでした"
           exit 1
 
       - name: 失敗をIssueへ通知
