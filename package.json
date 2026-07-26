@@ -3,7 +3,6 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Cloudflare Workers 上で動作するクローラーと管理画面",
   "author": "sui",
   "engines": {
     "node": ">=24.0.0"
