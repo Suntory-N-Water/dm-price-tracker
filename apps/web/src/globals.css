@@ -1,0 +1,48 @@
+@import "@fontsource-variable/noto-sans-jp";
+@import "tailwindcss";
+
+:root {
+  --background: #fafaf9;
+  --foreground: #1c1917;
+  --surface-ceramic: #edebe9;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "Noto Sans JP Variable", sans-serif;
+}
+
+* {
+  border-color: #e7e5e4;
+}
+
+html {
+  background: var(--background);
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 100% 0%, rgb(5 150 105 / 5%), transparent 32rem),
+    var(--background);
+  color: var(--foreground);
+  font-family: "Noto Sans JP Variable", sans-serif;
+}
+
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+select {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled {
+  cursor: not-allowed;
+}

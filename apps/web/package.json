@@ -1,0 +1,56 @@
+{
+  "name": "@dm-price-tracker/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "generate-routes": "tsr generate",
+    "build": "vite build",
+    "deploy": "pnpm run build && wrangler deploy",
+    "preview": "vite preview",
+    "test": "VITE_API_BASE_URL=http://api.test vitest run",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dm-price-tracker/api": "workspace:*",
+    "@fontsource-variable/noto-sans-jp": "5.3.0",
+    "@radix-ui/react-dialog": "^1.1.20",
+    "@radix-ui/react-slot": "^1.3.0",
+    "@tailwindcss/vite": "^4.1.18",
+    "@tanstack/react-query": "^5.101.4",
+    "@tanstack/react-router": "1.170.18",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "hono": "4.12.32",
+    "lucide-react": "^1.25.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^4.1.18",
+    "valibot": "1.4.2"
+  },
+  "devDependencies": {
+    "@tanstack/devtools-vite": "0.8.3",
+    "@tanstack/react-devtools": "0.10.9",
+    "@tanstack/react-router-devtools": "1.167.0",
+    "@tanstack/router-cli": "1.167.21",
+    "@tanstack/router-plugin": "1.168.23",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "catalog:",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "6.0.4",
+    "jsdom": "^29.1.1",
+    "typescript": "catalog:",
+    "vite": "8.0.10",
+    "vitest": "4.1.10",
+    "wrangler": "catalog:"
+  }
+}
