@@ -2,7 +2,11 @@
 
 import { CheckCircle2, Plus, RefreshCw, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import type { AdminProduct, Product } from '@/external/dto/api-schemas';
+import type {
+  AdminProduct,
+  CrawlSummary,
+  Product,
+} from '@/external/dto/api-schemas';
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
 import { Card } from '@/shared/components/ui/card';
@@ -22,16 +26,22 @@ import { cn } from '@/shared/lib/utils';
 
 export function AdminProductListPresenter({
   products,
+  mercariCrawl = null,
+  officialProductsCrawl = null,
   availableProducts = [],
   isPending = false,
   onSync,
   onCrawl,
+  onCardDetailsCrawl,
 }: {
   products: AdminProduct[];
+  mercariCrawl?: CrawlSummary | null;
+  officialProductsCrawl?: CrawlSummary | null;
   availableProducts?: Product[];
   isPending?: boolean;
-  onSync?: () => Promise<{ syncedCount: number }>;
+  onSync?: () => Promise<void>;
   onCrawl?: (productCode: string) => Promise<void>;
+  onCardDetailsCrawl?: (productCode: string) => Promise<void>;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchName, setSearchName] = useState('');
@@ -54,16 +64,12 @@ export function AdminProductListPresenter({
         <div className='flex flex-wrap gap-2'>
           <Button
             variant='outline'
-            disabled={isPending}
+            disabled={isPending || officialProductsCrawl?.status === 'RUNNING'}
             onClick={async () => {
               setError('');
               try {
-                const result = await onSync?.();
-                if (result !== undefined) {
-                  setMessage(
-                    `商品一覧を更新しました（${result.syncedCount}件）`,
-                  );
-                }
+                await onSync?.();
+                setMessage('商品一覧の更新を開始しました');
               } catch (caught) {
                 setError(
                   caught instanceof Error
@@ -179,12 +185,32 @@ export function AdminProductListPresenter({
         </p>
       )}
 
+      <Card className='p-5'>
+        <h2 className='font-semibold'>メルカリ価格取得</h2>
+        <p className='mt-2 text-sm text-stone-600'>
+          {mercariCrawl === null
+            ? 'まだ実行されていません'
+            : mercariCrawl.status === 'RUNNING'
+              ? '取得中'
+              : mercariCrawl.status === 'COMPLETED'
+                ? '完了'
+                : mercariCrawl.status === 'PARTIALLY_FAILED'
+                  ? '一部失敗'
+                  : '失敗'}
+        </p>
+        {mercariCrawl?.error !== null && mercariCrawl?.error !== undefined && (
+          <p className='mt-2 text-sm text-red-700'>{mercariCrawl.error}</p>
+        )}
+      </Card>
+
       <Card className='overflow-x-auto'>
-        <table className='w-full min-w-[720px] text-left text-sm'>
+        <table className='w-full min-w-[960px] text-left text-sm'>
           <thead className='border-b border-stone-200 bg-stone-50 text-xs uppercase tracking-wide text-stone-500'>
             <tr>
               <th className='px-5 py-3 font-semibold'>商品</th>
-              <th className='px-5 py-3 font-semibold'>カード情報の取得</th>
+              <th className='px-5 py-3 font-semibold'>カードID収集</th>
+              <th className='px-5 py-3 font-semibold'>カード詳細収集</th>
+              <th className='px-5 py-3 font-semibold'>未完了カード</th>
               <th className='px-5 py-3 font-semibold'>更新日時</th>
               <th className='px-5 py-3'>
                 <span className='sr-only'>操作</span>
@@ -193,12 +219,24 @@ export function AdminProductListPresenter({
           </thead>
           <tbody className='divide-y divide-stone-200'>
             {products.map((product) => {
-              const label =
-                product.status === 'FINISHED'
+              const cardIdLabel =
+                product.cardIdCrawl.status === 'COMPLETED'
                   ? '完了'
-                  : product.status === 'ABORTED'
+                  : product.cardIdCrawl.status === 'FAILED'
                     ? '失敗'
-                    : '取得中';
+                    : product.cardIdCrawl.status === 'PARTIALLY_FAILED'
+                      ? '一部失敗'
+                      : '取得中';
+              const cardDetailsLabel =
+                product.cardDetailsCrawl === null
+                  ? '未実行'
+                  : product.cardDetailsCrawl.status === 'COMPLETED'
+                    ? '完了'
+                    : product.cardDetailsCrawl.status === 'FAILED'
+                      ? '失敗'
+                      : product.cardDetailsCrawl.status === 'PARTIALLY_FAILED'
+                        ? '一部失敗'
+                        : '取得中';
               return (
                 <tr key={product.code}>
                   <td className='px-5 py-4'>
@@ -210,25 +248,48 @@ export function AdminProductListPresenter({
                   <td className='px-5 py-4'>
                     <Badge
                       className={cn(
-                        label === '完了' &&
+                        cardIdLabel === '完了' &&
                           'border-emerald-200 bg-emerald-50 text-emerald-800',
-                        label === '取得中' &&
+                        cardIdLabel === '取得中' &&
                           'border-amber-200 bg-amber-50 text-amber-800',
-                        label === '失敗' &&
+                        (cardIdLabel === '失敗' ||
+                          cardIdLabel === '一部失敗') &&
                           'border-red-200 bg-red-50 text-red-800',
                       )}
-                      title={product.error ?? undefined}
+                      title={product.cardIdCrawl.error ?? undefined}
                     >
-                      {label}
+                      {cardIdLabel}
+                    </Badge>
+                  </td>
+                  <td className='px-5 py-4'>
+                    <Badge
+                      className={cn(
+                        cardDetailsLabel === '完了' &&
+                          'border-emerald-200 bg-emerald-50 text-emerald-800',
+                        cardDetailsLabel === '取得中' &&
+                          'border-amber-200 bg-amber-50 text-amber-800',
+                        (cardDetailsLabel === '失敗' ||
+                          cardDetailsLabel === '一部失敗') &&
+                          'border-red-200 bg-red-50 text-red-800',
+                      )}
+                      title={product.cardDetailsCrawl?.error ?? undefined}
+                    >
+                      {cardDetailsLabel}
                     </Badge>
                   </td>
                   <td className='px-5 py-4 text-stone-600'>
-                    <time dateTime={`${product.updatedAt.replace(' ', 'T')}Z`}>
-                      {formatJstDateTime(product.updatedAt)}
+                    {product.pendingCardCount}件
+                  </td>
+                  <td className='px-5 py-4 text-stone-600'>
+                    <time
+                      dateTime={`${product.cardIdCrawl.updatedAt.replace(' ', 'T')}Z`}
+                    >
+                      {formatJstDateTime(product.cardIdCrawl.updatedAt)}
                     </time>
                   </td>
                   <td className='px-5 py-4 text-right'>
-                    {product.status === 'ABORTED' && (
+                    {(product.cardIdCrawl.status === 'FAILED' ||
+                      product.cardIdCrawl.status === 'PARTIALLY_FAILED') && (
                       <Button
                         size='sm'
                         variant='outline'
@@ -237,6 +298,23 @@ export function AdminProductListPresenter({
                       >
                         <RefreshCw className='size-3.5' />
                         再取得
+                      </Button>
+                    )}
+                    {product.pendingCardCount > 0 && (
+                      <Button
+                        size='sm'
+                        variant='outline'
+                        className='ml-2'
+                        disabled={
+                          isPending ||
+                          product.cardDetailsCrawl?.status === 'RUNNING'
+                        }
+                        onClick={() => onCardDetailsCrawl?.(product.code)}
+                      >
+                        {product.cardDetailsCrawl?.status === 'FAILED' ||
+                        product.cardDetailsCrawl?.status === 'PARTIALLY_FAILED'
+                          ? '詳細を再取得'
+                          : 'カード詳細収集を開始'}
                       </Button>
                     )}
                   </td>

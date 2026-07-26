@@ -23,6 +23,8 @@ export async function AdminProductsPageTemplate() {
     <HydrationBoundary state={dehydrate(queryClient)}>
       <AdminProductListContainer
         initialProducts={products.products}
+        initialMercariCrawl={products.mercariCrawl}
+        initialOfficialProductsCrawl={products.officialProductsCrawl}
         initialAvailableProducts={available.products}
       />
     </HydrationBoundary>

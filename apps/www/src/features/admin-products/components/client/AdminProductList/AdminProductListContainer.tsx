@@ -1,8 +1,13 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AdminProduct, Product } from '@/external/dto/api-schemas';
+import type {
+  AdminProduct,
+  CrawlSummary,
+  Product,
+} from '@/external/dto/api-schemas';
 import {
+  crawlAdminProductCardDetailsAction,
   crawlAdminProductAction,
   syncAdminProductsAction,
 } from '@/external/handler/admin-products/mutation.action';
@@ -16,15 +21,23 @@ import { AdminProductListPresenter } from './AdminProductListPresenter';
 export function AdminProductListContainer({
   initialProducts,
   initialAvailableProducts,
+  initialMercariCrawl,
+  initialOfficialProductsCrawl,
 }: {
   initialProducts: AdminProduct[];
   initialAvailableProducts: Product[];
+  initialMercariCrawl: CrawlSummary | null;
+  initialOfficialProductsCrawl: CrawlSummary | null;
 }) {
   const queryClient = useQueryClient();
   const products = useQuery({
     queryKey: adminProductKeys.list,
     queryFn: getAdminProductsAction,
-    initialData: { products: initialProducts },
+    initialData: {
+      products: initialProducts,
+      mercariCrawl: initialMercariCrawl,
+      officialProductsCrawl: initialOfficialProductsCrawl,
+    },
   });
   const available = useQuery({
     queryKey: adminProductKeys.available(''),
@@ -41,16 +54,21 @@ export function AdminProductListContainer({
   return (
     <AdminProductListPresenter
       products={products.data.products}
+      mercariCrawl={products.data.mercariCrawl}
+      officialProductsCrawl={products.data.officialProductsCrawl}
       availableProducts={available.data.products}
       isPending={mutation.isPending}
       onSync={() =>
-        mutation.mutateAsync(syncAdminProductsAction) as Promise<{
-          syncedCount: number;
-        }>
+        mutation.mutateAsync(syncAdminProductsAction).then(() => {})
       }
       onCrawl={(productCode) =>
         mutation
           .mutateAsync(() => crawlAdminProductAction(productCode))
+          .then(() => {})
+      }
+      onCardDetailsCrawl={(productCode) =>
+        mutation
+          .mutateAsync(() => crawlAdminProductCardDetailsAction(productCode))
           .then(() => {})
       }
     />

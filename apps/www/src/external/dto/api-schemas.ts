@@ -83,13 +83,15 @@ export const bulkExcludeResponseSchema = v.object({
   ),
 });
 
-export const syncProductsResponseSchema = v.object({
-  syncedCount: v.number(),
-});
-
 export const crawlProductResponseSchema = v.object({
   id: v.string(),
-  status: v.unknown(),
+  status: v.literal('RUNNING'),
+});
+
+const crawlSummarySchema = v.object({
+  status: v.picklist(['RUNNING', 'COMPLETED', 'PARTIALLY_FAILED', 'FAILED']),
+  updatedAt: v.string(),
+  error: v.nullable(v.string()),
 });
 
 export const adminProductListResponseSchema = v.object({
@@ -97,11 +99,13 @@ export const adminProductListResponseSchema = v.object({
     v.object({
       code: v.string(),
       name: v.string(),
-      status: v.picklist(['WAITING', 'RUNNING', 'FINISHED', 'ABORTED']),
-      updatedAt: v.string(),
-      error: v.nullable(v.string()),
+      cardIdCrawl: crawlSummarySchema,
+      cardDetailsCrawl: v.nullable(crawlSummarySchema),
+      pendingCardCount: v.number(),
     }),
   ),
+  mercariCrawl: v.nullable(crawlSummarySchema),
+  officialProductsCrawl: v.nullable(crawlSummarySchema),
 });
 
 const formWordSchema = v.pipe(
@@ -140,3 +144,4 @@ export type PriceHistory = v.InferOutput<typeof priceHistoryResponseSchema>;
 export type AdminProduct = v.InferOutput<
   typeof adminProductListResponseSchema
 >['products'][number];
+export type CrawlSummary = v.InferOutput<typeof crawlSummarySchema>;
