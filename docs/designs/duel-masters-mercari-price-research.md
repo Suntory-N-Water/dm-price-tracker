@@ -128,9 +128,9 @@
 
 ## 13. バックエンドの技術構成
 
-- Next.js App Router のキャッチオールルート(`app/api/[[...route]]/route.ts`)に、`hono/vercel` アダプタ経由でHonoアプリケーションをマウントする。
-- 画面(Next.js)とAPI(Hono)は別Workerに分けず、1つのWorkerとしてデプロイする。
-- 事実確認: この構成はHono公式ドキュメントに記載されている。Web標準のRequest/Responseで動作するため、Vercel以外の環境(OpenNext.js for Cloudflare)でも動作するはず(名称は`hono/vercel`だがVercel専用ではない)。
+- TanStack RouterのクライアントSPAとHono APIを別Workerへデプロイする。
+- Browserは別originのHono APIを直接呼び出し、BFF、proxy、Service Bindingは追加しない。
+- 詳細な実行・認証・公開構成は`docs/designs/tanstack-router-hono-migration.md`を唯一の方針とする。
 
 ## 14. 公式サイトクローラーの起動経路
 
