@@ -1,0 +1,114 @@
+name: メルカリ接続確認
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions: {}
+
+concurrency:
+  group: mercari-access-check
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    name: 検索ページを撮影
+    if: >-
+      github.event.issue.pull_request == null &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+      contains(github.event.comment.body, '@Suntory-N-Water mercari-check')
+    timeout-minutes: 10
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      issues: write
+    env:
+      SCREENSHOT_PATH: /tmp/mercari-search.png
+      TARGET_URL: https://jp.mercari.com/search?keyword=%E3%83%87%E3%83%A5%E3%82%A8%E3%83%AB%E3%83%9E%E3%82%B9%E3%82%BF%E3%83%BC%E3%82%BA&sort=created_time&order=desc&category_id=1290
+    steps:
+      - name: agent-browserをインストール
+        run: npm install --global agent-browser@0.33.0
+
+      - name: Chromeとシステム依存をインストール
+        run: agent-browser install --with-deps
+
+      - name: メルカリ検索ページを撮影
+        id: capture
+        run: |
+          set -euo pipefail
+          trap 'agent-browser --session mercari-check close || true' EXIT
+
+          agent-browser --session mercari-check open "$TARGET_URL"
+          agent-browser --session mercari-check wait --load domcontentloaded
+          agent-browser --session mercari-check wait 3000
+
+          current_url="$(agent-browser --session mercari-check get url)"
+          case "$current_url" in
+            https://jp.mercari.com/*) ;;
+            *)
+              echo "想定外のURLへ遷移しました: $current_url"
+              exit 1
+              ;;
+          esac
+
+          agent-browser --session mercari-check screenshot "$SCREENSHOT_PATH"
+          item_count="$(
+            agent-browser --session mercari-check get count \
+              'a[data-testid="thumbnail-link"][href^="/item/"]'
+          )"
+          if (( item_count == 0 )); then
+            echo "検索結果の商品を取得できませんでした"
+            exit 1
+          fi
+          echo "item_count=${item_count}" >> "$GITHUB_OUTPUT"
+
+      - name: スクリーンショットをIssueへ掲載
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ITEM_COUNT: ${{ steps.capture.outputs.item_count }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+
+          artifact_branch="verification-artifacts"
+          artifact_path="mercari/${GITHUB_RUN_ID}.png"
+
+          if ! gh api \
+            "repos/${GITHUB_REPOSITORY}/git/ref/heads/${artifact_branch}" \
+            >/dev/null 2>&1; then
+            main_sha="$(
+              gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" \
+                --jq '.object.sha'
+            )"
+            gh api --method POST \
+              "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/heads/${artifact_branch}" \
+              -f sha="$main_sha" \
+              >/dev/null
+          fi
+
+          content="$(base64 --wrap=0 "$SCREENSHOT_PATH")"
+          gh api --method PUT \
+            "repos/${GITHUB_REPOSITORY}/contents/${artifact_path}" \
+            -f message="chore: メルカリ接続確認の画像を保存" \
+            -f content="$content" \
+            -f branch="$artifact_branch" \
+            >/dev/null
+
+          image_url="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${artifact_branch}/${artifact_path}"
+          run_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --body "$(printf 'GitHub-hosted runnerからメルカリへアクセスし、検索結果を%s件確認できました。\n\n![メルカリ検索ページ](%s)\n\n[Workflow run](%s)' "$ITEM_COUNT" "$image_url" "$run_url")"
+
+      - name: 失敗をIssueへ通知
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          run_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --body "メルカリ接続確認に失敗しました。[Workflow run](${run_url})"
