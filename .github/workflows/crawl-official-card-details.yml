@@ -1,0 +1,77 @@
+name: 公式カード詳細収集
+
+on:
+  repository_dispatch:
+    types:
+      - crawl-official-card-details
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.client_payload.crawlRunId }}
+  cancel-in-progress: false
+
+jobs:
+  targets:
+    name: 取得対象を分割
+    timeout-minutes: 5
+    runs-on: ubuntu-24.04
+    outputs:
+      batches: ${{ steps.batches.outputs.batches }}
+    steps:
+      - name: 未完了対象を10件ずつ分割
+        id: batches
+        env:
+          CRAWLER_API_BASE_URL: ${{ vars.CRAWLER_API_BASE_URL }}
+          CRAWLER_API_KEY: ${{ secrets.CRAWLER_API_KEY }}
+          CRAWL_RUN_ID: ${{ github.event.client_payload.crawlRunId }}
+        run: |
+          set -euo pipefail
+          response="$(
+            curl \
+              --fail-with-body \
+              --silent \
+              --show-error \
+              --header "Authorization: Bearer ${CRAWLER_API_KEY}" \
+              "${CRAWLER_API_BASE_URL}/api/crawler/runs/${CRAWL_RUN_ID}"
+          )"
+          batches="$(
+            jq --compact-output '
+              if .kind != "OFFICIAL_CARD_DETAILS" then
+                error("クロール種別が一致しません")
+              else
+                [.targets[].cardId][:2560]
+                | [range(0; length; 10) as $offset | .[$offset:$offset + 10]]
+              end
+            ' <<<"${response}"
+          )"
+          echo "batches=${batches}" >>"${GITHUB_OUTPUT}"
+
+  crawl:
+    name: カード詳細を取得
+    needs: targets
+    if: needs.targets.outputs.batches != '[]'
+    timeout-minutes: 360
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        targetIds: ${{ fromJSON(needs.targets.outputs.batches) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/crawler-setup
+      - name: 公式カード詳細を取得
+        env:
+          CRAWLER_API_BASE_URL: ${{ vars.CRAWLER_API_BASE_URL }}
+          CRAWLER_API_KEY: ${{ secrets.CRAWLER_API_KEY }}
+          CRAWL_RUN_ID: ${{ github.event.client_payload.crawlRunId }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          TARGET_IDS: ${{ toJSON(matrix.targetIds) }}
+        run: pnpm --filter crawler run crawl:official-card-details

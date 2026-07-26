@@ -1,0 +1,31 @@
+name: 公式カードID収集
+
+on:
+  repository_dispatch:
+    types:
+      - crawl-official-card-ids
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.client_payload.crawlRunId }}
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    name: カードIDを収集
+    timeout-minutes: 60
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/crawler-setup
+      - name: 商品別カードIDを取得
+        env:
+          CRAWLER_API_BASE_URL: ${{ vars.CRAWLER_API_BASE_URL }}
+          CRAWLER_API_KEY: ${{ secrets.CRAWLER_API_KEY }}
+          CRAWL_RUN_ID: ${{ github.event.client_payload.crawlRunId }}
+        run: pnpm --filter crawler run crawl:official-card-ids
