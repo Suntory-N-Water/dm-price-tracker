@@ -42,7 +42,18 @@ jobs:
           agent-browser --session mercari-check open "$TARGET_URL"
           agent-browser --session mercari-check wait --load domcontentloaded
           agent-browser --session mercari-check wait 3000
-          agent-browser --session mercari-check snapshot -i
+          snapshot="$(
+            agent-browser --session mercari-check snapshot -i
+          )"
+          printf '%s\n' "$snapshot"
+
+          if [[ "$snapshot" == *'combobox "国/地域を選択"'* ]]; then
+            agent-browser --session mercari-check select @e2 "JP"
+            agent-browser --session mercari-check \
+              find text "続ける" click --exact
+            agent-browser --session mercari-check wait --load domcontentloaded
+            agent-browser --session mercari-check wait 3000
+          fi
 
           current_url="$(agent-browser --session mercari-check get url)"
           case "$current_url" in
@@ -62,11 +73,20 @@ jobs:
             echo "検索結果の商品を取得できませんでした"
             exit 1
           fi
+          first_price="$(
+            agent-browser --session mercari-check get text '.merPrice'
+          )"
+          if [[ "$first_price" != *"¥"* ]]; then
+            echo "日本円の価格を取得できませんでした: $first_price"
+            exit 1
+          fi
           echo "item_count=${item_count}" >> "$GITHUB_OUTPUT"
+          echo "first_price=${first_price}" >> "$GITHUB_OUTPUT"
 
       - name: スクリーンショットをIssueへ掲載
         env:
           GH_TOKEN: ${{ github.token }}
+          FIRST_PRICE: ${{ steps.capture.outputs.first_price }}
           ITEM_COUNT: ${{ steps.capture.outputs.item_count }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
@@ -106,7 +126,7 @@ jobs:
           run_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           gh issue comment "$ISSUE_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
-            --body "$(printf 'GitHub-hosted runnerからメルカリへアクセスし、検索結果を%s件確認できました。\n\n![メルカリ検索ページ](%s)\n\n[Workflow run](%s)' "$ITEM_COUNT" "$image_url" "$run_url")"
+            --body "$(printf 'GitHub-hosted runnerから日本向けのメルカリへアクセスし、検索結果を%s件確認できました（先頭価格: %s）。\n\n![メルカリ検索ページ](%s)\n\n[Workflow run](%s)' "$ITEM_COUNT" "$FIRST_PRICE" "$image_url" "$run_url")"
 
       - name: 失敗をIssueへ通知
         if: failure()
