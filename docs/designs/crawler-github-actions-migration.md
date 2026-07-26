@@ -155,13 +155,17 @@
   - 標準GitHub-hosted runnerでは「アメリカ合衆国」地域として認識され、地域選択画面と`US$`価格が表示された。
   - 地域選択画面で「日本」を選択しても、現行クローラーが使用する`.merPrice`は`US$`表示のままだった。
   - UAを日本ローカル環境と同じ値にし、`Accept-Language`、`navigator.language=ja`、timezone=`Asia/Tokyo`、東京のgeolocationを設定しても、地域判定は「アメリカ合衆国」、`.merPrice`は`US$`表示のままだった。
-  - したがって、標準GitHub-hosted runnerをそのままメルカリ取得へ使用しない。
-- 理由: アクセス可否だけでなく、現行の価格抽出とスクリーンショットが日本向け要件を満たさないことを実測で確認したため。
+  - 一方、各商品の`.merItemThumbnail[role="img"]`にある`aria-label`には、元の日本円価格と変換後の米ドル価格が両方含まれていた。
+  - 指定検索URLの全10商品から日本円価格を取得できた。
+  - 取得した日本円価格で`.merPrice`を上書きし、地域案内を閉じてから撮影することで、日本円表示のスクリーンショットを取得できた。
+  - 日本向けのUA、locale、timezone、geolocation、日本IPは設定せず、標準GitHub-hosted runnerを採用する。
+- 理由: 初期状態の標準runnerでも正しい日本円価格を取得でき、データ取得とスクリーンショット表示の両方を日本向けに補正できることを実測したため。
 - 検証記録:
   - [Issue #3](https://github.com/Suntory-N-Water/dm-price-tracker/issues/3)
   - [成功したアクセス・撮影Workflow](https://github.com/Suntory-N-Water/dm-price-tracker/actions/runs/30185696378)
   - [日本地域選択後の価格検証Workflow](https://github.com/Suntory-N-Water/dm-price-tracker/actions/runs/30185908716)
   - [Chromiumを日本環境へ設定した価格検証Workflow](https://github.com/Suntory-N-Water/dm-price-tracker/actions/runs/30186135412)
+  - [初期状態で円価格を取得し、表示を円へ置換したWorkflow](https://github.com/Suntory-N-Water/dm-price-tracker/actions/runs/30186568694)
 
 ### 既存Cloudflareクローラー基盤の扱い
 
@@ -181,12 +185,7 @@
 
 ## 方針決定に必要な事項
 
-ここにある事項だけを、方式の最終決定前に解消する。これら以外は実装を開始するための前提条件にしない。
-
-### メルカリへ日本向けにアクセスする実行経路
-
-- 標準GitHub-hosted runnerから日本の送信元IPを利用する方法を採用するか、日本リージョンのrunnerへ切り替えるかを決める。
-- 米国向け表示のままDOM内の円価格だけを抽出する方法は、スクリーンショットが米国向けになるため採用しない。
+現時点で、採用方式を決めるために未解決の事項はない。
 
 ## 実装時に決める事項
 
