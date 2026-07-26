@@ -1,5 +1,6 @@
 import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
 import {
+  type AnySQLiteColumn,
   check,
   index,
   integer,
@@ -18,6 +19,63 @@ export const products = sqliteTable('products', {
   createdAt: text('created_at').notNull().default(currentTimestamp),
 });
 
+export const crawlRuns = sqliteTable(
+  'crawl_runs',
+  {
+    id: text('id').primaryKey(),
+    kind: text('kind').notNull(),
+    productCode: text('product_code').references(() => products.code, {
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    }),
+    status: text('status').notNull(),
+    retriedFromRunId: text('retried_from_run_id').references(
+      (): AnySQLiteColumn => crawlRuns.id,
+    ),
+    expiresAt: text('expires_at').notNull(),
+    createdAt: text('created_at').notNull().default(currentTimestamp),
+    updatedAt: text('updated_at').notNull().default(currentTimestamp),
+  },
+  (table) => [
+    index('crawl_runs_kind_product_code_created_at_idx').on(
+      table.kind,
+      table.productCode,
+      table.createdAt,
+    ),
+    check(
+      'crawl_runs_kind_check',
+      sql`${table.kind} in ('MERCARI', 'OFFICIAL_PRODUCTS', 'OFFICIAL_CARD_IDS', 'OFFICIAL_CARD_DETAILS')`,
+    ),
+    check(
+      'crawl_runs_status_check',
+      sql`${table.status} in ('RUNNING', 'COMPLETED', 'PARTIALLY_FAILED', 'FAILED')`,
+    ),
+  ],
+);
+
+export const crawlTargets = sqliteTable(
+  'crawl_targets',
+  {
+    crawlRunId: text('crawl_run_id')
+      .notNull()
+      .references(() => crawlRuns.id, {
+        onDelete: 'cascade',
+        onUpdate: 'cascade',
+      }),
+    targetId: text('target_id').notNull(),
+    status: text('status').notNull(),
+    error: text('error'),
+    updatedAt: text('updated_at').notNull().default(currentTimestamp),
+  },
+  (table) => [
+    primaryKey({ columns: [table.crawlRunId, table.targetId] }),
+    check(
+      'crawl_targets_status_check',
+      sql`${table.status} in ('PENDING', 'SUCCEEDED', 'FAILED')`,
+    ),
+  ],
+);
+
 export const cards = sqliteTable(
   'cards',
   {
@@ -33,6 +91,21 @@ export const cards = sqliteTable(
     createdAt: text('created_at').notNull().default(currentTimestamp),
   },
   (table) => [index('cards_product_id_idx').on(table.productId)],
+);
+
+export const pendingCards = sqliteTable(
+  'pending_cards',
+  {
+    id: text('id').primaryKey(),
+    productId: text('product_id')
+      .notNull()
+      .references(() => products.code, {
+        onDelete: 'cascade',
+        onUpdate: 'cascade',
+      }),
+    createdAt: text('created_at').notNull().default(currentTimestamp),
+  },
+  (table) => [index('pending_cards_product_id_idx').on(table.productId)],
 );
 
 // 追加ワード変更時に系列を分け、同じ追加ワードへ戻した時は元の系列を再利用する。
@@ -185,8 +258,14 @@ export const cardWatches = sqliteTable(
 
 export type Product = InferSelectModel<typeof products>;
 export type NewProduct = InferInsertModel<typeof products>;
+export type CrawlRun = InferSelectModel<typeof crawlRuns>;
+export type NewCrawlRun = InferInsertModel<typeof crawlRuns>;
+export type CrawlTarget = InferSelectModel<typeof crawlTargets>;
+export type NewCrawlTarget = InferInsertModel<typeof crawlTargets>;
 export type Card = InferSelectModel<typeof cards>;
 export type NewCard = InferInsertModel<typeof cards>;
+export type PendingCard = InferSelectModel<typeof pendingCards>;
+export type NewPendingCard = InferInsertModel<typeof pendingCards>;
 export type PriceSeries = InferSelectModel<typeof priceSeries>;
 export type NewPriceSeries = InferInsertModel<typeof priceSeries>;
 export type SearchCondition = InferSelectModel<typeof searchConditions>;
