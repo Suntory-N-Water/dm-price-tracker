@@ -48,7 +48,7 @@ jobs:
           printf '%s\n' "$snapshot"
 
           if [[ "$snapshot" == *'combobox "国/地域を選択"'* ]]; then
-            agent-browser --session mercari-check select @e2 "JP"
+            agent-browser --session mercari-check select @e2 "jp"
             agent-browser --session mercari-check \
               find text "続ける" click --exact
             agent-browser --session mercari-check wait --load domcontentloaded
