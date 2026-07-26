@@ -9,8 +9,8 @@
   },
   "scripts": {
     "db:generate": "pnpm exec drizzle-kit generate",
-    "db:migrate": "wrangler d1 migrations apply duelmasters-display-db --local --persist-to ../../.wrangler/state",
-    "db:migrate:remote": "wrangler d1 migrations apply duelmasters-display-db --remote",
+    "db:migrate": "wrangler d1 migrations apply duelmasters-display-db --config ../../apps/www/wrangler.jsonc --local --persist-to ../../.wrangler/state",
+    "db:migrate:remote": "wrangler d1 migrations apply duelmasters-display-db --config ../../apps/www/wrangler.jsonc --remote",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {

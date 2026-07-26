@@ -15,6 +15,7 @@
     {
       "binding": "DISPLAY_DB",
       "database_name": "duelmasters-display-db",
+      "migrations_dir": "../../packages/display-db/migrations",
       "preview_database_id": "duelmasters-display-db-local",
       "database_id": "7edc2cfe-6f98-427f-bb91-feb03638a268"
     }
