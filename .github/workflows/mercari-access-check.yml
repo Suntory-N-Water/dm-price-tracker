@@ -76,12 +76,14 @@ jobs:
           first_price="$(
             agent-browser --session mercari-check get text '.merPrice'
           )"
-          if [[ "$first_price" != *"¥"* ]]; then
-            echo "日本円の価格を取得できませんでした: $first_price"
-            exit 1
-          fi
+          first_price="${first_price//$'\n'/}"
           echo "item_count=${item_count}" >> "$GITHUB_OUTPUT"
           echo "first_price=${first_price}" >> "$GITHUB_OUTPUT"
+          if [[ "$first_price" == *"¥"* ]]; then
+            echo "is_jpy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_jpy=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: スクリーンショットをIssueへ掲載
         env:
@@ -126,7 +128,15 @@ jobs:
           run_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           gh issue comment "$ISSUE_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
-            --body "$(printf 'GitHub-hosted runnerから日本向けのメルカリへアクセスし、検索結果を%s件確認できました（先頭価格: %s）。\n\n![メルカリ検索ページ](%s)\n\n[Workflow run](%s)' "$ITEM_COUNT" "$FIRST_PRICE" "$image_url" "$run_url")"
+            --body "$(printf 'GitHub-hosted runnerからメルカリへアクセスし、検索結果を%s件確認できました（先頭価格: %s）。\n\n![メルカリ検索ページ](%s)\n\n[Workflow run](%s)' "$ITEM_COUNT" "$FIRST_PRICE" "$image_url" "$run_url")"
+
+      - name: 日本向け価格表示を確認
+        if: steps.capture.outputs.is_jpy != 'true'
+        env:
+          FIRST_PRICE: ${{ steps.capture.outputs.first_price }}
+        run: |
+          echo "日本円の価格を取得できませんでした: $FIRST_PRICE"
+          exit 1
 
       - name: 失敗をIssueへ通知
         if: failure()
