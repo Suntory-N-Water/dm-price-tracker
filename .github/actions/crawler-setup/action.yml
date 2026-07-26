@@ -65,9 +65,10 @@ runs:
           printf 'fingerprint=%s-%s\n' "${image}" "$(printf '%s' "${packages[*]}" | sha256sum | cut -c-12)"
         } >>"${GITHUB_OUTPUT}"
 
+    # actions/cache 本体の保存は post-if: success() のためクロール失敗時にキャッシュが残らない。restore/save に分けて取得直後に保存する
     - name: システム依存パッケージのキャッシュを復元
       id: apt-cache
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.apt-debs
         key: apt-${{ runner.os }}-${{ runner.arch }}-${{ steps.apt.outputs.fingerprint }}
@@ -91,6 +92,13 @@ runs:
           (cd "${HOME}/.apt-debs" && apt-get download "${missing[@]}")
         fi
 
+    - name: システム依存パッケージのキャッシュを保存
+      if: steps.apt-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.apt-debs
+        key: ${{ steps.apt-cache.outputs.cache-primary-key }}
+
     - name: システム依存パッケージをインストール
       shell: bash
       run: |
@@ -105,7 +113,7 @@ runs:
 
     - name: Chromiumのキャッシュを復元
       id: chromium-cache
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.cache/ms-playwright
         # 取得するブラウザビルドは playwright のバージョンで決まるため、それを固定している package.json をキーにする
@@ -115,3 +123,10 @@ runs:
       if: steps.chromium-cache.outputs.cache-hit != 'true'
       run: pnpm --filter crawler exec playwright install chromium
       shell: bash
+
+    - name: Chromiumのキャッシュを保存
+      if: steps.chromium-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ steps.chromium-cache.outputs.cache-primary-key }}

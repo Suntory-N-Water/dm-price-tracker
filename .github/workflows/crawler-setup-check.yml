@@ -28,7 +28,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat >"${RUNNER_TEMP}/launch-check.mjs" <<'EOS'
+          # ESM の解決はスクリプトの位置基準のため、crawler の node_modules を辿れる場所に置く
+          cat >apps/crawler/launch-check.mjs <<'EOS'
           import { chromium } from 'playwright';
 
           const browser = await chromium.launch();
@@ -38,5 +39,5 @@ jobs:
           console.log(`Chromium ${browser.version()} / ${await page.textContent('h1')}`);
           await browser.close();
           EOS
-          pnpm --filter crawler exec node "${RUNNER_TEMP}/launch-check.mjs"
+          pnpm --filter crawler exec node launch-check.mjs
           ls -l "${RUNNER_TEMP}/launch-check.png"
