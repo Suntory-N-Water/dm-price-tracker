@@ -1,9 +1,6 @@
 name: クローラーセットアップ検証
 
 on:
-  issues:
-    types:
-      - opened
   workflow_dispatch:
 
 permissions: {}
