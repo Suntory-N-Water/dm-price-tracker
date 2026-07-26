@@ -48,6 +48,10 @@ jobs:
             agent-browser --session mercari-check snapshot -i
           )"
           printf '%s\n' "$snapshot"
+          if [[ "$snapshot" == *'button "閉じる"'* ]]; then
+            agent-browser --session mercari-check \
+              find role button click --name "閉じる" --exact
+          fi
 
           current_url="$(agent-browser --session mercari-check get url)"
           case "$current_url" in
@@ -60,7 +64,7 @@ jobs:
 
           # shellcheck disable=SC2016
           agent-browser --session mercari-check eval \
-            'Array.from(document.querySelectorAll(`a[data-testid="thumbnail-link"][href^="/item/"]`)).map((anchor) => { const thumbnailLabel = anchor.querySelector(`.merItemThumbnail[role="img"][aria-label]`)?.getAttribute("aria-label") ?? ""; const yenMatch = thumbnailLabel.match(/([0-9,]+)円(?:\s+US\$[0-9,.]+)?$/); const priceElement = anchor.querySelector(".merPrice"); const originalVisiblePrice = priceElement?.textContent?.trim() ?? ""; if (yenMatch !== null && priceElement !== null) { priceElement.textContent = `¥${yenMatch[1]}`; } return { url: anchor.href, title: anchor.querySelector(`[data-testid="thumbnail-item-name"]`)?.textContent?.trim() ?? "", originalVisiblePrice, thumbnailLabel, yenPrice: yenMatch === null ? null : Number(yenMatch[1].replaceAll(",", "")) }; })' \
+            'Array.from(document.querySelectorAll(`.merItemThumbnail[role="img"][aria-label]`)).map((thumbnail) => { const anchor = thumbnail.closest(`a[href^="/item/"]`); const thumbnailLabel = thumbnail.getAttribute("aria-label") ?? ""; const yenMatch = thumbnailLabel.match(/([0-9,]+)円(?:\s+US\$[0-9,.]+)?$/); const priceElement = thumbnail.querySelector(".merPrice"); const originalVisiblePrice = priceElement?.textContent?.trim() ?? ""; if (yenMatch !== null && priceElement !== null) { priceElement.textContent = `¥${yenMatch[1]}`; } return { url: anchor?.href ?? "", title: anchor?.querySelector(`[data-testid="thumbnail-item-name"]`)?.textContent?.trim() ?? "", originalVisiblePrice, thumbnailLabel, yenPrice: yenMatch === null ? null : Number(yenMatch[1].replaceAll(",", "")) }; })' \
             >/tmp/items.json
           jq . /tmp/items.json
           agent-browser --session mercari-check screenshot "$SCREENSHOT_PATH"
