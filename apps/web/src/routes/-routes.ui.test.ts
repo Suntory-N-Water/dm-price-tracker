@@ -84,7 +84,10 @@ describe('route loader', () => {
         ).pathname;
         if (apiPath.endsWith('/price-history')) {
           return jsonResponse({
-            card: { imageUrl: '/api/cards/dm26ex2-001/image' },
+            card: {
+              imageUrl: '/api/cards/dm26ex2-001/image',
+              product: { code: '26ex2', name: 'カリスマBEST' },
+            },
             pricePoints: [],
           });
         }
@@ -92,7 +95,7 @@ describe('route loader', () => {
           return jsonResponse({ watches: [] });
         }
         if (apiPath === '/api/cards') {
-          return jsonResponse({ cards: [] });
+          return jsonResponse({ cards: [], pageCount: 1 });
         }
         if (apiPath === '/api/settings/common-exclude-keywords') {
           return jsonResponse({ keywords: [] });

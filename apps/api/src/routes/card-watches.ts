@@ -69,6 +69,12 @@ const cardWatchSearchSchema = v.object({
   ),
 });
 
+const priceHistoryQuerySchema = v.object({
+  period: v.optional(v.picklist(['24h', '7d', '30d']), '7d'),
+});
+
+const periodHours = { '24h': 24, '7d': 168, '30d': 720 } as const;
+
 const screenshotParamSchema = v.object({
   cardId: cardIdParamSchema.entries.cardId,
   crawledAt: v.pipe(
@@ -152,12 +158,25 @@ export const cardWatchRoutes = new Hono<ApiEnv>()
         return context.json({ error: '入力値が不正です' }, 400);
       }
     }),
+    sValidator('query', priceHistoryQuerySchema, (result, context) => {
+      if (!result.success) {
+        return context.json({ error: '入力値が不正です' }, 400);
+      }
+    }),
     async (context) => {
-      const history = await findPriceHistory(
-        context.env.DISPLAY_DB,
-        context.var.userEmail,
-        context.req.valid('param').cardId,
-      );
+      const since = new Date(
+        Date.now() -
+          periodHours[context.req.valid('query').period] * 60 * 60 * 1000,
+      )
+        .toISOString()
+        .replace('T', ' ')
+        .slice(0, 19);
+      const history = await findPriceHistory({
+        database: context.env.DISPLAY_DB,
+        userEmail: context.var.userEmail,
+        cardId: context.req.valid('param').cardId,
+        since,
+      });
       if (history === undefined) {
         return context.json(
           { error: '価格チェック中のカードが見つかりません' },

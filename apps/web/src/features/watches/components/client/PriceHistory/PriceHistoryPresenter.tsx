@@ -1,36 +1,22 @@
 import { Link } from '@tanstack/react-router';
 import { ArrowLeft, ImageOff, ShoppingBag } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import type { PriceHistoryPeriod } from '@/features/watches/api';
 import type { PriceHistory } from '@/shared/api/types';
 import { Button } from '@/shared/components/ui/button';
 import { Card } from '@/shared/components/ui/card';
 import { formatJstDateTime } from '@/shared/lib/date-time';
 import { cn } from '@/shared/lib/utils';
 
-type Period = '24h' | '7d' | '30d' | 'all';
-
 export function PriceHistoryPresenter({
   history,
-  productName,
+  period,
+  onPeriodChange,
 }: {
   history: PriceHistory;
-  productName?: string;
+  period: PriceHistoryPeriod;
+  onPeriodChange: (period: PriceHistoryPeriod) => void;
 }) {
-  const [period, setPeriod] = useState<Period>('7d');
-  const visiblePoints = useMemo(() => {
-    if (period === 'all' || history.pricePoints.length === 0) {
-      return history.pricePoints;
-    }
-    const latest = Date.parse(
-      `${history.pricePoints.at(-1)?.crawledAt.replace(' ', 'T')}Z`,
-    );
-    const periodHours = period === '24h' ? 24 : period === '7d' ? 168 : 720;
-    return history.pricePoints.filter(
-      (point) =>
-        Date.parse(`${point.crawledAt.replace(' ', 'T')}Z`) >=
-        latest - periodHours * 60 * 60 * 1000,
-    );
-  }, [history.pricePoints, period]);
   const [selectedAt, setSelectedAt] = useState(
     history.pricePoints.at(-1)?.crawledAt ?? '',
   );
@@ -39,13 +25,13 @@ export function PriceHistoryPresenter({
     history.pricePoints.at(-1);
   // Math.min(...prices) は価格点が増えるとスプレッドの引数上限に達するため使わない
   const { minPrice, maxPrice } = useMemo(() => {
-    const first = visiblePoints[0];
+    const first = history.pricePoints[0];
     if (first === undefined) {
       return { minPrice: 0, maxPrice: 0 };
     }
     let min = first.price;
     let max = first.price;
-    for (const point of visiblePoints) {
+    for (const point of history.pricePoints) {
       if (point.price < min) {
         min = point.price;
       }
@@ -54,7 +40,7 @@ export function PriceHistoryPresenter({
       }
     }
     return { minPrice: min, maxPrice: max };
-  }, [visiblePoints]);
+  }, [history.pricePoints]);
   const priceRange = Math.max(1, maxPrice - minPrice);
 
   return (
@@ -76,11 +62,9 @@ export function PriceHistoryPresenter({
           className='h-36 w-25 rounded-lg bg-[var(--surface-ceramic)] object-contain p-1'
         />
         <div>
-          {productName !== undefined && (
-            <p className='mb-2 text-sm font-semibold text-emerald-700'>
-              {productName}
-            </p>
-          )}
+          <p className='mb-2 text-sm font-semibold text-emerald-700'>
+            {history.card.product.name}
+          </p>
           <h1 className='text-2xl font-black tracking-tight lg:text-3xl'>
             {history.card.name}
           </h1>
@@ -105,13 +89,12 @@ export function PriceHistoryPresenter({
                   ['24h', '24時間'],
                   ['7d', '7日'],
                   ['30d', '30日'],
-                  ['all', '全期間'],
                 ] as const
               ).map(([value, label]) => (
                 <button
                   key={value}
                   type='button'
-                  onClick={() => setPeriod(value)}
+                  onClick={() => onPeriodChange(value)}
                   className={cn(
                     'rounded-md px-3 py-1.5 text-xs font-semibold text-stone-600',
                     period === value && 'bg-white text-emerald-800 shadow-sm',
@@ -122,18 +105,18 @@ export function PriceHistoryPresenter({
               ))}
             </div>
           </div>
-          {visiblePoints.length === 0 ? (
+          {history.pricePoints.length === 0 ? (
             <div className='grid h-72 place-items-center text-sm text-stone-500'>
               価格データはまだありません
             </div>
           ) : (
             <div className='relative h-80 overflow-hidden rounded-lg border border-stone-200 bg-[linear-gradient(to_bottom,#e7e5e4_1px,transparent_1px)] bg-[size:100%_25%] px-7 py-8'>
               <div className='absolute inset-x-8 bottom-8 top-8 border-b border-l border-stone-300' />
-              {visiblePoints.map((point, index) => {
+              {history.pricePoints.map((point, index) => {
                 const left =
-                  visiblePoints.length === 1
+                  history.pricePoints.length === 1
                     ? 50
-                    : 5 + (index / (visiblePoints.length - 1)) * 90;
+                    : 5 + (index / (history.pricePoints.length - 1)) * 90;
                 const top = 85 - ((point.price - minPrice) / priceRange) * 70;
                 return (
                   <button
@@ -152,15 +135,15 @@ export function PriceHistoryPresenter({
               })}
               <span className='absolute bottom-2 left-8 text-xs text-stone-500'>
                 {
-                  formatJstDateTime(visiblePoints[0]?.crawledAt ?? '').split(
-                    ' ',
-                  )[0]
+                  formatJstDateTime(
+                    history.pricePoints[0]?.crawledAt ?? '',
+                  ).split(' ')[0]
                 }
               </span>
               <span className='absolute bottom-2 right-8 text-xs text-stone-500'>
                 {
                   formatJstDateTime(
-                    visiblePoints.at(-1)?.crawledAt ?? '',
+                    history.pricePoints.at(-1)?.crawledAt ?? '',
                   ).split(' ')[0]
                 }
               </span>

@@ -5,43 +5,37 @@ import {
   Search,
   TrendingUp,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { CardFilters } from '@/features/cards/api';
 import type { Card as CardType, Product } from '@/shared/api/types';
 import { Button } from '@/shared/components/ui/button';
 import { Card } from '@/shared/components/ui/card';
 import { Input } from '@/shared/components/ui/input';
 
-const cardsPerPage = 18;
+const searchDebounceMs = 300;
 
 export function CardSearchPresenter({
   cards,
+  pageCount,
   products,
+  filters,
+  onFiltersChange,
   isPending = false,
   onToggle,
 }: {
   cards: CardType[];
+  pageCount: number;
   products: Product[];
+  filters: CardFilters;
+  onFiltersChange: (filters: CardFilters) => void;
   isPending?: boolean;
   onToggle?: (card: CardType) => Promise<void>;
 }) {
-  const [name, setName] = useState('');
-  const [productCode, setProductCode] = useState('');
-  const [page, setPage] = useState(1);
+  const [name, setName] = useState(filters.name);
   const [error, setError] = useState('');
-  const filteredCards = useMemo(() => {
-    const normalizedName = name.trim().toLocaleLowerCase('ja');
-    return cards.filter(
-      (card) =>
-        card.name.toLocaleLowerCase('ja').includes(normalizedName) &&
-        (productCode === '' || card.product.code === productCode),
-    );
-  }, [cards, name, productCode]);
-  const pageCount = Math.max(1, Math.ceil(filteredCards.length / cardsPerPage));
-  const currentPage = Math.min(page, pageCount);
-  const visibleCards = filteredCards.slice(
-    (currentPage - 1) * cardsPerPage,
-    currentPage * cardsPerPage,
-  );
+  // 1文字ごとにサーバーへ問い合わせないよう、入力が落ち着いてから絞り込む
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(debounceRef.current), []);
 
   return (
     <div className='space-y-6'>
@@ -55,18 +49,31 @@ export function CardSearchPresenter({
             type='search'
             value={name}
             onChange={(event) => {
-              setName(event.target.value);
-              setPage(1);
+              const nextName = event.target.value;
+              setName(nextName);
+              clearTimeout(debounceRef.current);
+              debounceRef.current = setTimeout(
+                () =>
+                  onFiltersChange({
+                    ...filters,
+                    name: nextName.trim(),
+                    page: 1,
+                  }),
+                searchDebounceMs,
+              );
             }}
             placeholder='カード名で検索'
             className='pl-9'
           />
         </label>
         <select
-          value={productCode}
+          value={filters.productCode}
           onChange={(event) => {
-            setProductCode(event.target.value);
-            setPage(1);
+            onFiltersChange({
+              ...filters,
+              productCode: event.target.value,
+              page: 1,
+            });
           }}
           className='h-10 rounded-md border border-stone-300 bg-white px-3 text-sm'
           aria-label='商品で絞り込む'
@@ -87,14 +94,14 @@ export function CardSearchPresenter({
           {error}
         </p>
       )}
-      {filteredCards.length === 0 ? (
+      {cards.length === 0 ? (
         <Card className='grid min-h-56 place-items-center p-8 text-center font-semibold'>
           条件に合うカードはありません
         </Card>
       ) : (
         <>
           <div className='grid gap-5 sm:grid-cols-2 xl:grid-cols-3'>
-            {visibleCards.map((card, index) => (
+            {cards.map((card, index) => (
               <Card key={card.id} className='overflow-hidden'>
                 <div className='grid h-88 place-items-center border-b border-stone-200 bg-[var(--surface-ceramic)] p-4'>
                   <div className='relative aspect-[5/7] h-80 max-w-full overflow-hidden rounded-lg shadow-[0_1px_1px_rgba(0,0,0,0.18),0_6px_14px_rgba(0,0,0,0.10)]'>
@@ -105,7 +112,7 @@ export function CardSearchPresenter({
                       height={336}
                       crossOrigin='use-credentials'
                       loading={
-                        currentPage === 1 && index < 3 ? 'eager' : 'lazy'
+                        filters.page === 1 && index < 3 ? 'eager' : 'lazy'
                       }
                       className='h-full w-full object-contain'
                     />
@@ -161,21 +168,23 @@ export function CardSearchPresenter({
               <Button
                 variant='outline'
                 className='h-11 min-w-11 px-3'
-                disabled={currentPage === 1}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                disabled={filters.page === 1}
+                onClick={() =>
+                  onFiltersChange({ ...filters, page: filters.page - 1 })
+                }
               >
                 <ChevronLeft className='size-4' />
                 前へ
               </Button>
               <p className='min-w-24 text-center text-sm font-semibold text-stone-700'>
-                {currentPage} / {pageCount} ページ
+                {filters.page} / {pageCount} ページ
               </p>
               <Button
                 variant='outline'
                 className='h-11 min-w-11 px-3'
-                disabled={currentPage === pageCount}
+                disabled={filters.page === pageCount}
                 onClick={() =>
-                  setPage((current) => Math.min(pageCount, current + 1))
+                  onFiltersChange({ ...filters, page: filters.page + 1 })
                 }
               >
                 次へ

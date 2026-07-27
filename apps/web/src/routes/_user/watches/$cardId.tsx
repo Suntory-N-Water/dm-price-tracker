@@ -1,12 +1,12 @@
 import { createFileRoute, notFound } from '@tanstack/react-router';
+import * as v from 'valibot';
 import { PriceHistoryContainer } from '@/features/watches/components/client/PriceHistory/PriceHistoryContainer';
-import {
-  priceHistoryQueryOptions,
-  watchesQueryOptions,
-} from '@/features/watches/api';
+import { priceHistoryQueryOptions } from '@/features/watches/api';
 import { ApiError } from '@/shared/api/client';
 
-const initialFilters = { name: '', productCode: '' };
+const priceHistorySearchSchema = v.object({
+  period: v.optional(v.picklist(['24h', '7d', '30d']), '7d'),
+});
 
 export const Route = createFileRoute('/_user/watches/$cardId')({
   head: () => ({
@@ -15,16 +15,13 @@ export const Route = createFileRoute('/_user/watches/$cardId')({
       { name: 'description', content: 'カードの価格履歴' },
     ],
   }),
-  loader: async ({ context, params }) => {
+  validateSearch: priceHistorySearchSchema,
+  loaderDeps: ({ search }) => ({ period: search.period }),
+  loader: async ({ context, params, deps }) => {
     try {
-      await Promise.all([
-        context.queryClient.ensureQueryData(
-          priceHistoryQueryOptions(params.cardId),
-        ),
-        context.queryClient.ensureQueryData(
-          watchesQueryOptions(initialFilters),
-        ),
-      ]);
+      await context.queryClient.ensureQueryData(
+        priceHistoryQueryOptions(params.cardId, deps.period),
+      );
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) {
         throw notFound();
@@ -42,5 +39,13 @@ export const Route = createFileRoute('/_user/watches/$cardId')({
 
 function PriceHistoryRoute() {
   const { cardId } = Route.useParams();
-  return <PriceHistoryContainer cardId={cardId} />;
+  const { period } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  return (
+    <PriceHistoryContainer
+      cardId={cardId}
+      period={period}
+      onPeriodChange={(next) => navigate({ search: { period: next } })}
+    />
+  );
 }

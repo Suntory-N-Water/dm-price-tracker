@@ -21,7 +21,7 @@ describe('カード検索の更新', () => {
       defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY } },
     });
     queryClient.setQueryData(
-      cardsQueryOptions({ name: '', productCode: '' }).queryKey,
+      cardsQueryOptions({ name: '', productCode: '', page: 1 }).queryKey,
       {
         cards: [
           {
@@ -32,6 +32,7 @@ describe('カード検索の更新', () => {
             isWatching: false,
           },
         ],
+        pageCount: 1,
       },
     );
     queryClient.setQueryData(cardProductsQueryOptions.queryKey, {
@@ -55,7 +56,10 @@ describe('カード検索の更新', () => {
     const user = userEvent.setup();
     renderWithRouter(
       <QueryClientProvider client={queryClient}>
-        <CardSearchContainer />
+        <CardSearchContainer
+          filters={{ name: '', productCode: '', page: 1 }}
+          onFiltersChange={() => {}}
+        />
       </QueryClientProvider>,
     );
 

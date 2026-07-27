@@ -59,7 +59,41 @@ describe('カード検索', () => {
           isWatching: false,
         },
       ],
+      pageCount: 1,
     });
+  });
+
+  it('1ページ分を超える時、指定ページのカードと総ページ数を取得できること', async () => {
+    const sut = createApp({
+      verifyAccessToken: async () => 'friend@example.com',
+    });
+    await env.DISPLAY_DB.prepare(
+      `INSERT INTO cards (id, product_id, name, image_key)
+       SELECT 'dm26rp2-' || printf('%03d', value), '26rp2', 'ページングカード' || value, 'cards/paging.png'
+       FROM (WITH RECURSIVE numbers(value) AS (
+               SELECT 10 UNION ALL SELECT value + 1 FROM numbers WHERE value < 25
+             ) SELECT value FROM numbers)`,
+    ).run();
+
+    const response = await sut.request(
+      '/api/cards?page=2',
+      {
+        headers: {
+          origin: 'http://web.test',
+          'cf-access-jwt-assertion': 'valid-token',
+        },
+      },
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      cards: { id: string }[];
+      pageCount: number;
+    };
+    // カード総数は既存3件と追加16件で19件
+    expect(body.pageCount).toBe(2);
+    expect(body.cards.map((card) => card.id)).toEqual(['dm26rp2-025']);
   });
 
   it('同名で型番が異なるカードの時、画像の異なる別カードとして取得できること', async () => {

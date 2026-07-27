@@ -1,9 +1,9 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { CardSearchPresenter } from './CardSearchPresenter';
 
-const cards = Array.from({ length: 19 }, (_, index) => ({
+const cards = Array.from({ length: 18 }, (_, index) => ({
   id: `dm-card-${index + 1}`,
   name: `テストカード${index + 1}`,
   imageUrl: `/api/cards/dm-card-${index + 1}/image`,
@@ -11,20 +11,53 @@ const cards = Array.from({ length: 19 }, (_, index) => ({
   isWatching: false,
 }));
 
-describe('カード一覧', () => {
-  it('19件ある時、次のページに進むと19件目だけ表示されること', async () => {
-    const user = userEvent.setup();
-    render(<CardSearchPresenter cards={cards} products={[]} />);
+const filters = { name: '', productCode: '', page: 1 };
 
-    expect(
-      screen.getAllByRole('button', { name: '価格チェックを開始' }),
-    ).toHaveLength(18);
+describe('カード一覧', () => {
+  it('次のページに進んだ時、次のページの取得を要求すること', async () => {
+    const user = userEvent.setup();
+    const onFiltersChange = vi.fn();
+    render(
+      <CardSearchPresenter
+        cards={cards}
+        pageCount={2}
+        products={[]}
+        filters={filters}
+        onFiltersChange={onFiltersChange}
+      />,
+    );
 
     await user.click(screen.getByRole('button', { name: '次へ' }));
 
-    expect(screen.getByText('テストカード19')).toBeVisible();
-    expect(
-      screen.getAllByRole('button', { name: '価格チェックを開始' }),
-    ).toHaveLength(1);
+    expect(onFiltersChange).toHaveBeenCalledWith({
+      name: '',
+      productCode: '',
+      page: 2,
+    });
+  });
+
+  it('カード名を続けて入力した時、入力が止まってから1回だけ絞り込みを要求すること', async () => {
+    const user = userEvent.setup();
+    const onFiltersChange = vi.fn();
+    render(
+      <CardSearchPresenter
+        cards={cards}
+        pageCount={2}
+        products={[]}
+        filters={{ ...filters, page: 2 }}
+        onFiltersChange={onFiltersChange}
+      />,
+    );
+
+    await user.type(screen.getByLabelText('カード名で検索'), 'ドラゴン');
+
+    await waitFor(() => {
+      expect(onFiltersChange).toHaveBeenCalledTimes(1);
+    });
+    expect(onFiltersChange).toHaveBeenCalledWith({
+      name: 'ドラゴン',
+      productCode: '',
+      page: 1,
+    });
   });
 });

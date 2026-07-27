@@ -6,6 +6,7 @@ import {
 import {
   cardsQueryOptions,
   cardProductsQueryOptions,
+  type CardFilters,
 } from '@/features/cards/api';
 import { startCardWatch, stopCardWatch } from '@/features/watches/api';
 import { cardKeys } from '@/features/cards/queries/keys';
@@ -13,12 +14,16 @@ import { watchKeys } from '@/features/watches/queries/keys';
 import type { Card } from '@/shared/api/types';
 import { CardSearchPresenter } from './CardSearchPresenter';
 
-const initialFilters = { name: '', productCode: '' };
-
-export function CardSearchContainer() {
+export function CardSearchContainer({
+  filters,
+  onFiltersChange,
+}: {
+  filters: CardFilters;
+  onFiltersChange: (filters: CardFilters) => void;
+}) {
   const queryClient = useQueryClient();
   const [cards, products] = useSuspenseQueries({
-    queries: [cardsQueryOptions(initialFilters), cardProductsQueryOptions],
+    queries: [cardsQueryOptions(filters), cardProductsQueryOptions],
   });
   const mutation = useMutation({
     mutationFn: async (card: Card) => {
@@ -39,7 +44,10 @@ export function CardSearchContainer() {
   return (
     <CardSearchPresenter
       cards={cards.data.cards}
+      pageCount={cards.data.pageCount}
       products={products.data.products}
+      filters={filters}
+      onFiltersChange={onFiltersChange}
       isPending={mutation.isPending}
       onToggle={(card) => mutation.mutateAsync(card).then(() => {})}
     />

@@ -1,4 +1,14 @@
-import { and, asc, eq, gt, inArray, notExists, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  notExists,
+  sql,
+} from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import {
   cards,
@@ -226,6 +236,10 @@ export type PriceHistory = {
     id: string;
     name: string;
     imageUrl: string;
+    product: {
+      code: string;
+      name: string;
+    };
   };
   currentPrice: number | null;
   pricePoints: {
@@ -235,20 +249,31 @@ export type PriceHistory = {
   }[];
 };
 
-export async function findPriceHistory(
-  database: D1Database,
-  userEmail: string,
-  cardId: string,
-): Promise<PriceHistory | undefined> {
+type FindPriceHistoryInput = {
+  database: D1Database;
+  userEmail: string;
+  cardId: string;
+  since: string;
+};
+
+export async function findPriceHistory({
+  database,
+  userEmail,
+  cardId,
+  since,
+}: FindPriceHistoryInput): Promise<PriceHistory | undefined> {
   const db = createDisplayDatabase(database);
   const [current] = await db
     .select({
       id: cards.id,
       name: cards.name,
+      productCode: products.code,
+      productName: products.name,
       priceSeriesId: searchConditions.priceSeriesId,
     })
     .from(cardWatches)
     .innerJoin(cards, eq(cards.id, cardWatches.cardId))
+    .innerJoin(products, eq(products.code, cards.productId))
     .innerJoin(
       searchConditions,
       eq(searchConditions.id, cardWatches.searchConditionId),
@@ -280,42 +305,55 @@ export async function findPriceHistory(
       ),
     )
     .as('used_conditions');
-  const rows = await db
-    .select({
-      crawledAt: pricePoints.crawledAt,
-      price: pricePoints.price,
-      imageKey: screenshots.imageKey,
-    })
-    .from(pricePoints)
-    .innerJoin(
-      usedConditions,
-      eq(usedConditions.searchConditionId, pricePoints.searchConditionId),
-    )
-    .leftJoin(
-      screenshots,
-      and(
-        eq(screenshots.searchConditionId, pricePoints.searchConditionId),
-        eq(screenshots.crawledAt, pricePoints.crawledAt),
-      ),
-    )
-    .orderBy(asc(pricePoints.crawledAt));
-  const historyPoints = rows.map((point) => ({
-    crawledAt: point.crawledAt,
-    price: point.price,
-    screenshotUrl:
-      point.imageKey === null
-        ? null
-        : `/api/card-watches/${encodeURIComponent(cardId)}/screenshots/${encodeURIComponent(point.crawledAt)}`,
-  }));
+  // 現在価格は期間外にしか価格点がない場合でも表示するため、期間で絞らず別に引く
+  const [rows, [latestPoint]] = await Promise.all([
+    db
+      .select({
+        crawledAt: pricePoints.crawledAt,
+        price: pricePoints.price,
+        imageKey: screenshots.imageKey,
+      })
+      .from(pricePoints)
+      .innerJoin(
+        usedConditions,
+        eq(usedConditions.searchConditionId, pricePoints.searchConditionId),
+      )
+      .leftJoin(
+        screenshots,
+        and(
+          eq(screenshots.searchConditionId, pricePoints.searchConditionId),
+          eq(screenshots.crawledAt, pricePoints.crawledAt),
+        ),
+      )
+      .where(gte(pricePoints.crawledAt, since))
+      .orderBy(asc(pricePoints.crawledAt)),
+    db
+      .select({ price: pricePoints.price })
+      .from(pricePoints)
+      .innerJoin(
+        usedConditions,
+        eq(usedConditions.searchConditionId, pricePoints.searchConditionId),
+      )
+      .orderBy(desc(pricePoints.crawledAt))
+      .limit(1),
+  ]);
 
   return {
     card: {
       id: current.id,
       name: current.name,
       imageUrl: `/api/cards/${encodeURIComponent(current.id)}/image`,
+      product: { code: current.productCode, name: current.productName },
     },
-    currentPrice: historyPoints.at(-1)?.price ?? null,
-    pricePoints: historyPoints,
+    currentPrice: latestPoint?.price ?? null,
+    pricePoints: rows.map((point) => ({
+      crawledAt: point.crawledAt,
+      price: point.price,
+      screenshotUrl:
+        point.imageKey === null
+          ? null
+          : `/api/card-watches/${encodeURIComponent(cardId)}/screenshots/${encodeURIComponent(point.crawledAt)}`,
+    })),
   };
 }
 

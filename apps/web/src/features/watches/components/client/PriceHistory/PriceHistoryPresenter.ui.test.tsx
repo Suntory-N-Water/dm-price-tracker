@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderWithRouter as render } from '@/test-utils/render-with-router';
 import { PriceHistoryPresenter } from './PriceHistoryPresenter';
 
@@ -9,6 +9,7 @@ const history = {
     id: 'dm26ex2-001',
     name: 'ボルシャック・ドラゴン',
     imageUrl: '/api/cards/dm26ex2-001/image',
+    product: { code: '26ex2', name: 'カリスマBEST' },
   },
   currentPrice: 3480,
   pricePoints: [
@@ -29,7 +30,13 @@ const history = {
 describe('価格詳細', () => {
   it('古い価格点を選んだ時、日時と価格と画像欠損表示が連動すること', async () => {
     const user = userEvent.setup();
-    render(<PriceHistoryPresenter history={history} />);
+    render(
+      <PriceHistoryPresenter
+        history={history}
+        period='7d'
+        onPeriodChange={() => {}}
+      />,
+    );
 
     await user.click(
       screen.getByRole('button', {
@@ -42,5 +49,21 @@ describe('価格詳細', () => {
     expect(
       screen.getByText('この時点の検索結果画像は残っていません'),
     ).toBeVisible();
+  });
+
+  it('別の期間を選んだ時、選んだ期間を通知すること', async () => {
+    const user = userEvent.setup();
+    const onPeriodChange = vi.fn();
+    render(
+      <PriceHistoryPresenter
+        history={history}
+        period='7d'
+        onPeriodChange={onPeriodChange}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: '30日' }));
+
+    expect(onPeriodChange).toHaveBeenCalledWith('30d');
   });
 });

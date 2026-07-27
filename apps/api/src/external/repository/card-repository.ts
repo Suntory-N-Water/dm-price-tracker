@@ -17,11 +17,21 @@ export type CardSummary = {
   isWatching: boolean;
 };
 
-export async function findCards(
-  database: D1Database,
-  userEmail: string,
-  filters: { name?: string; productCode?: string },
-): Promise<CardSummary[]> {
+type FindCardsInput = {
+  database: D1Database;
+  userEmail: string;
+  filters: { name?: string; productCode?: string };
+  page: number;
+  perPage: number;
+};
+
+export async function findCards({
+  database,
+  userEmail,
+  filters,
+  page,
+  perPage,
+}: FindCardsInput): Promise<{ cards: CardSummary[]; pageCount: number }> {
   const db = createDisplayDatabase(database);
   const conditions: SQL[] = [];
   if (filters.name !== undefined && filters.name !== '') {
@@ -50,22 +60,29 @@ export async function findCards(
             ),
           ),
       ),
+      // LIMITの前に絞り込み後の件数を数えるため、ページ取得と同じクエリで窓関数を使う
+      totalCount: sql<number>`count(*) over ()`,
     })
     .from(cards)
     .innerJoin(products, eq(products.code, cards.productId))
     .where(and(...conditions))
-    .orderBy(asc(cards.id));
+    .orderBy(asc(cards.id))
+    .limit(perPage)
+    .offset((page - 1) * perPage);
 
-  return rows.map((card) => ({
-    id: card.id,
-    name: card.name,
-    imageUrl: `/api/cards/${encodeURIComponent(card.id)}/image`,
-    product: {
-      code: card.productCode,
-      name: card.productName,
-    },
-    isWatching: Boolean(card.isWatching),
-  }));
+  return {
+    cards: rows.map((card) => ({
+      id: card.id,
+      name: card.name,
+      imageUrl: `/api/cards/${encodeURIComponent(card.id)}/image`,
+      product: {
+        code: card.productCode,
+        name: card.productName,
+      },
+      isWatching: Boolean(card.isWatching),
+    })),
+    pageCount: Math.max(1, Math.ceil((rows[0]?.totalCount ?? 0) / perPage)),
+  };
 }
 
 export async function findCardImageKey(

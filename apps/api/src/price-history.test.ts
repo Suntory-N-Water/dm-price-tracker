@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, onTestFinished } from 'vitest';
 import { createApp } from './app';
 import { resetDisplayDb } from '#api/test-utils/display-db';
 
+function hoursAgo(hours: number) {
+  return new Date(Date.now() - hours * 60 * 60 * 1000)
+    .toISOString()
+    .replace('T', ' ')
+    .slice(0, 19);
+}
+
 describe('価格チェック一覧と詳細', () => {
   beforeEach(async () => {
     await resetDisplayDb();
@@ -81,23 +88,25 @@ describe('価格チェック一覧と詳細', () => {
         condition.id,
       ]),
     );
+    const olderAt = hoursAgo(2);
+    const latestAt = hoursAgo(1);
     await env.DISPLAY_DB.batch([
       env.DISPLAY_DB.prepare(
         `INSERT INTO price_points (search_condition_id, crawled_at, price)
-         VALUES (?, '2026-07-23 10:00:00', 1000)`,
-      ).bind(conditionByKeyword.get('まとめ 専用')),
+         VALUES (?, ?, 1000)`,
+      ).bind(conditionByKeyword.get('まとめ 専用'), olderAt),
       env.DISPLAY_DB.prepare(
         `INSERT INTO price_points (search_condition_id, crawled_at, price)
-         VALUES (?, '2026-07-23 10:30:00', 900)`,
-      ).bind(conditionByKeyword.get('まとめ 専用 美品')),
+         VALUES (?, ?, 900)`,
+      ).bind(conditionByKeyword.get('まとめ 専用 美品'), latestAt),
       env.DISPLAY_DB.prepare(
         `INSERT INTO screenshots (search_condition_id, crawled_at, image_key)
-         VALUES (?, '2026-07-23 10:30:00', 'screenshots/two.png')`,
-      ).bind(conditionByKeyword.get('まとめ 専用 美品')),
+         VALUES (?, ?, 'screenshots/two.png')`,
+      ).bind(conditionByKeyword.get('まとめ 専用 美品'), latestAt),
       env.DISPLAY_DB.prepare(
         `INSERT INTO price_points (search_condition_id, crawled_at, price)
-         VALUES (?, '2026-07-23 10:15:00', 100)`,
-      ).bind(conditionByKeyword.get('ジャンク')),
+         VALUES (?, ?, 100)`,
+      ).bind(conditionByKeyword.get('ジャンク'), hoursAgo(1.5)),
     ]);
 
     const response = await sut.request(
@@ -112,21 +121,66 @@ describe('価格チェック一覧と詳細', () => {
         id: 'dm26ex2-001',
         name: 'ボルシャック・ドラゴン',
         imageUrl: '/api/cards/dm26ex2-001/image',
+        product: { code: '26ex2', name: 'カリスマBEST' },
       },
       currentPrice: 900,
       pricePoints: [
         {
-          crawledAt: '2026-07-23 10:00:00',
+          crawledAt: olderAt,
           price: 1000,
           screenshotUrl: null,
         },
         {
-          crawledAt: '2026-07-23 10:30:00',
+          crawledAt: latestAt,
           price: 900,
-          screenshotUrl:
-            '/api/card-watches/dm26ex2-001/screenshots/2026-07-23%2010%3A30%3A00',
+          screenshotUrl: `/api/card-watches/dm26ex2-001/screenshots/${encodeURIComponent(latestAt)}`,
         },
       ],
+    });
+  });
+
+  it('価格詳細の時、指定期間の価格点だけ返しつつ現在価格は期間外でも返すこと', async () => {
+    const sut = createApp({
+      verifyAccessToken: async () => 'friend@example.com',
+    });
+    const headers = {
+      'content-type': 'application/json',
+      origin: 'http://web.test',
+      'cf-access-jwt-assertion': 'valid-token',
+    };
+    await sut.request(
+      '/api/card-watches',
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ cardId: 'dm26ex2-001' }),
+      },
+      env,
+    );
+    const condition = await env.DISPLAY_DB.prepare(
+      `SELECT search_condition_id
+       FROM card_watches
+       WHERE user_email = ? AND card_id = ? AND is_current = 1`,
+    )
+      .bind('friend@example.com', 'dm26ex2-001')
+      .first<{ search_condition_id: number }>();
+    await env.DISPLAY_DB.prepare(
+      `INSERT INTO price_points (search_condition_id, crawled_at, price)
+       VALUES (?, ?, 5000)`,
+    )
+      .bind(condition?.search_condition_id, hoursAgo(200))
+      .run();
+
+    const response = await sut.request(
+      '/api/card-watches/dm26ex2-001/price-history?period=24h',
+      { headers },
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      currentPrice: 5000,
+      pricePoints: [],
     });
   });
 

@@ -8,10 +8,16 @@ import {
 } from '#api/external/repository/card-repository';
 import { createR2Response } from '#api/external/service/image/create-r2-response';
 
+const cardsPerPage = 18;
+
 const cardSearchSchema = v.object({
   name: v.optional(v.pipe(v.string(), v.maxLength(100))),
   productCode: v.optional(
     v.pipe(v.string(), v.maxLength(30), v.regex(/^[a-z0-9]+$/u)),
+  ),
+  page: v.optional(
+    v.pipe(v.string(), v.regex(/^[1-9]\d{0,3}$/u), v.transform(Number)),
+    '1',
   ),
 });
 
@@ -33,13 +39,16 @@ export const cardRoutes = new Hono<ApiEnv>()
       }
     }),
     async (context) => {
-      const cards = await findCards(
-        context.env.DISPLAY_DB,
-        context.var.userEmail,
-        context.req.valid('query'),
-      );
+      const { name, productCode, page } = context.req.valid('query');
+      const { cards, pageCount } = await findCards({
+        database: context.env.DISPLAY_DB,
+        userEmail: context.var.userEmail,
+        filters: { name, productCode },
+        page,
+        perPage: cardsPerPage,
+      });
 
-      return context.json({ cards });
+      return context.json({ cards, pageCount });
     },
   )
   .get(

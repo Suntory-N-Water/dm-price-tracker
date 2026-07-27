@@ -42,13 +42,18 @@ export const watchesQueryOptions = (filters: WatchFilters) =>
     },
   });
 
-export const priceHistoryQueryOptions = (cardId: string) =>
+export type PriceHistoryPeriod = '24h' | '7d' | '30d';
+
+export const priceHistoryQueryOptions = (
+  cardId: string,
+  period: PriceHistoryPeriod,
+) =>
   queryOptions({
-    queryKey: watchKeys.detail(cardId),
+    queryKey: watchKeys.detail(cardId, period),
     queryFn: async () => {
       const response = await apiClient.api['card-watches'][':cardId'][
         'price-history'
-      ].$get({ param: { cardId } });
+      ].$get({ param: { cardId }, query: { period } });
       const result = await parseApiResponse<PriceHistory>(response);
       return {
         ...result,

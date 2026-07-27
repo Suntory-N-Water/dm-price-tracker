@@ -10,6 +10,7 @@ import { cardKeys } from './queries/keys';
 export type CardFilters = {
   name: string;
   productCode: string;
+  page: number;
 };
 
 export const cardsQueryOptions = (filters: CardFilters) =>
@@ -21,6 +22,7 @@ export const cardsQueryOptions = (filters: CardFilters) =>
           name: filters.name === '' ? undefined : filters.name,
           productCode:
             filters.productCode === '' ? undefined : filters.productCode,
+          page: String(filters.page),
         },
       });
       const result = await parseApiResponse<CardListResponse>(response);
@@ -29,6 +31,7 @@ export const cardsQueryOptions = (filters: CardFilters) =>
           ...card,
           imageUrl: resolveApiAssetUrl(card.imageUrl),
         })),
+        pageCount: result.pageCount,
       };
     },
   });

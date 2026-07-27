@@ -1,24 +1,26 @@
-import { useSuspenseQueries } from '@tanstack/react-query';
+import { useSuspenseQuery } from '@tanstack/react-query';
 import {
   priceHistoryQueryOptions,
-  watchesQueryOptions,
+  type PriceHistoryPeriod,
 } from '@/features/watches/api';
 import { PriceHistoryPresenter } from './PriceHistoryPresenter';
 
-const initialFilters = { name: '', productCode: '' };
-
-export function PriceHistoryContainer({ cardId }: { cardId: string }) {
-  const [history, watches] = useSuspenseQueries({
-    queries: [
-      priceHistoryQueryOptions(cardId),
-      watchesQueryOptions(initialFilters),
-    ],
-  });
-  const productName = watches.data.watches.find(
-    (watch) => watch.card.id === cardId,
-  )?.card.product.name;
+export function PriceHistoryContainer({
+  cardId,
+  period,
+  onPeriodChange,
+}: {
+  cardId: string;
+  period: PriceHistoryPeriod;
+  onPeriodChange: (period: PriceHistoryPeriod) => void;
+}) {
+  const history = useSuspenseQuery(priceHistoryQueryOptions(cardId, period));
 
   return (
-    <PriceHistoryPresenter history={history.data} productName={productName} />
+    <PriceHistoryPresenter
+      history={history.data}
+      period={period}
+      onPeriodChange={onPeriodChange}
+    />
   );
 }
