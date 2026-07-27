@@ -14,9 +14,7 @@
       "!node_modules",
       "!**/dist",
       "!**/worker-configuration.d.ts",
-      "!**/.wrangler",
-      "!**/.open-next",
-      "!**/.next"
+      "!**/.wrangler"
     ]
   },
   "formatter": {
@@ -37,6 +35,7 @@
   },
   "linter": {
     "enabled": true,
+    "includes": ["**", "!apps/web/src/routeTree.gen.ts"],
     "rules": {
       "recommended": true,
       "suspicious": {

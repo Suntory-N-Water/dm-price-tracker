@@ -1,0 +1,49 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dm-price-tracker-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-21",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "secrets": {
+    "required": [
+      "TEAM_DOMAIN",
+      "POLICY_AUD",
+      "ADMIN_POLICY_AUD",
+      "ADMIN_EMAIL",
+      "CRAWLER_API_KEY",
+      "GITHUB_DISPATCH_TOKEN"
+    ]
+  },
+  "vars": {
+    "GITHUB_REPOSITORY": "Suntory-N-Water/dm-price-tracker",
+    "WEB_ORIGIN": "https://web.example.com"
+  },
+  "triggers": {
+    "crons": ["*/30 * * * *"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DISPLAY_DB",
+      "database_name": "duelmasters-display-db",
+      "migrations_dir": "../../packages/display-db/migrations",
+      "preview_database_id": "duelmasters-display-db-local",
+      "database_id": "7edc2cfe-6f98-427f-bb91-feb03638a268"
+    }
+  ],
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    }
+  },
+  "r2_buckets": [
+    {
+      "binding": "CARD_IMAGES",
+      "bucket_name": "duelmasters-card-images"
+    },
+    {
+      "binding": "SCREENSHOTS",
+      "bucket_name": "mercari-crawler-screenshots"
+    }
+  ]
+}

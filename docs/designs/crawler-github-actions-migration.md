@@ -177,11 +177,11 @@
 
 ### Repository Dispatchの発行元と認証
 
-- 背景: メルカリは定期実行、公式サイトは既存管理画面から起動する。どちらも表示用D1と管理画面を持つ`apps/www`に実行状態を集約できる。
+- 背景: メルカリは定期実行、公式サイトは既存管理画面から起動する。どちらも表示用D1へ接続する`apps/api`に実行状態を集約できる。
 - 採用内容:
-  - 新しいdispatcher専用Workerは追加せず、`apps/www`のWorkerからRepository Dispatchを発行する。
-  - メルカリの30分Cronも`apps/www`へ設定する。
-  - 公式サイトの取得は、既存管理画面から`apps/www`を経由して起動する。
+  - 新しいdispatcher専用Workerは追加せず、`apps/api`のWorkerからRepository Dispatchを発行する。
+  - メルカリの30分Cronも`apps/api`へ設定する。
+  - 公式サイトの取得は、管理画面から`apps/api`を経由して起動する。
   - 対象リポジトリだけに限定したfine-grained personal access tokenをCloudflare Workers Secretへ保存する。
 - 理由: 個人開発で専用サービスを増やさず、起動、実行状態、失敗時の再実行を既存アプリへ集約するため。
 
